@@ -2,6 +2,8 @@
 
 SQL Server Stress Tester and Learning Tool
 
+![DBTickler Demo](https://github.com/jakemorgangit/DBTickler/blob/main/DBTickler.gif)
+
 **DBTickler** is a lightweight, practical SQL Server workload generator
 designed for DBAs, developers, students, and performance engineers. It
 creates realistic activity inside a database so you can observe
