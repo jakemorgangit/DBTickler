@@ -120,7 +120,7 @@ scenarios.
 
 ### Quick Start
 
-1.  Download the latest release from the **Releases** page
+1.  Download the latest release from the **Releases** page https://github.com/jakemorgangit/DBTickler/releases/
 2.  Run `DBTickler.exe` (portable -- no installation required)
 
 ## Usage
