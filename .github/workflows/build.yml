@@ -1,0 +1,84 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  test:
+    name: Build and test
+    # The core library, the CLI and the test suite are all platform-neutral, so the fast
+    # checks run on Linux. The WPF app is cross-compiled here too, which catches XAML and
+    # binding errors without needing a Windows runner.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+  package:
+    name: Publish Windows executable
+    needs: test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish desktop app
+        run: >
+          dotnet publish src/DBTickler.App/DBTickler.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output publish/app
+
+      - name: Publish command-line tool
+        run: >
+          dotnet publish src/DBTickler.Cli/DBTickler.Cli.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          --output publish/cli
+
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbtickler-win-x64
+          path: |
+            publish/app/DBTickler.exe
+            publish/cli/dbtickler.exe
+          if-no-files-found: error
+
+      - name: Attach executables to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            publish/app/DBTickler.exe
+            publish/cli/dbtickler.exe
+          generate_release_notes: true

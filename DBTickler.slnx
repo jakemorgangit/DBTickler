@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DBTickler.App/DBTickler.App.csproj" />
+    <Project Path="src/DBTickler.Cli/DBTickler.Cli.csproj" />
+    <Project Path="src/DBTickler.Core/DBTickler.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DBTickler.Core.Tests/DBTickler.Core.Tests.csproj" />
+  </Folder>
+</Solution>

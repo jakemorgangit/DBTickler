@@ -1,0 +1,38 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Palette carried over from DBTickler v1 so the app stays recognisable. -->
+
+    <SolidColorBrush x:Key="ChromeBackground"        Color="#F3F3F3" />
+    <SolidColorBrush x:Key="SurfaceBackground"       Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ControlBackground"       Color="#F5F5F5" />
+    <SolidColorBrush x:Key="ControlHoverBackground"  Color="#E8E8E8" />
+
+    <SolidColorBrush x:Key="OutlineBrush"            Color="#CCCCCC" />
+    <SolidColorBrush x:Key="OutlineStrongBrush"      Color="#B0B0B0" />
+
+    <SolidColorBrush x:Key="ForegroundBrush"         Color="#1E1E1E" />
+    <SolidColorBrush x:Key="MutedForegroundBrush"    Color="#616161" />
+
+    <SolidColorBrush x:Key="AccentBrush"             Color="#0078D4" />
+    <SolidColorBrush x:Key="AccentHoverBrush"        Color="#1C97EA" />
+    <SolidColorBrush x:Key="AccentPressedBrush"      Color="#005A9E" />
+    <SolidColorBrush x:Key="AccentForegroundBrush"   Color="#FFFFFF" />
+
+    <SolidColorBrush x:Key="SuccessBrush"            Color="#107C10" />
+    <SolidColorBrush x:Key="SuccessHoverBrush"       Color="#0B5A0B" />
+    <SolidColorBrush x:Key="DangerBrush"             Color="#D13438" />
+    <SolidColorBrush x:Key="DangerHoverBrush"        Color="#A72D30" />
+    <SolidColorBrush x:Key="WarningBrush"            Color="#9D5D00" />
+
+    <SolidColorBrush x:Key="ConsoleBackground"       Color="#FBFBFB" />
+    <SolidColorBrush x:Key="ConsoleForeground"       Color="#1E1E1E" />
+
+    <SolidColorBrush x:Key="ChartLineBrush"          Color="#0078D4" />
+    <SolidColorBrush x:Key="ChartFillBrush"          Color="#330078D4" />
+    <SolidColorBrush x:Key="ChartGridBrush"          Color="#DDDDDD" />
+    <SolidColorBrush x:Key="ChartMarkerBrush"        Color="#D13438" />
+    <SolidColorBrush x:Key="ChartLatencyBrush"       Color="#8764B8" />
+    <SolidColorBrush x:Key="ChartLatencyFillBrush"   Color="#338764B8" />
+
+</ResourceDictionary>

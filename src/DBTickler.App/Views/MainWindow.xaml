@@ -1,0 +1,744 @@
+<Window x:Class="DBTickler.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:DBTickler.App.Controls"
+        xmlns:converters="clr-namespace:DBTickler.App.Converters"
+        xmlns:vm="clr-namespace:DBTickler.App.ViewModels"
+        Title="DBTickler — SQL Server workload generator"
+        Height="880" Width="1500"
+        MinHeight="640" MinWidth="1120"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource ChromeBackground}"
+        FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <converters:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibility" />
+        <converters:IndentConverter x:Key="Indent" />
+        <converters:ShareConverter x:Key="Share" />
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ══ Header ══ -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="DBTickler" FontSize="20" FontWeight="Bold"
+                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="v2" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Bottom"
+                           Foreground="{DynamicResource MutedForegroundBrush}" />
+                <Border Width="1" Background="{DynamicResource OutlineBrush}" Margin="14,2" />
+                <TextBlock Text="{Binding ServerDescription}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource MutedForegroundBrush}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <TextBlock Text="Session" Style="{StaticResource FieldLabel}" />
+                <ComboBox Width="170" ItemsSource="{Binding SavedSessions}"
+                          SelectedItem="{Binding SelectedSessionName, Mode=TwoWay}"
+                          ToolTip="Load a saved configuration" />
+                <Button Content="Save" Command="{Binding SaveSessionCommand}" Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}" ToolTip="Save the current settings as a named session" />
+                <Button Content="Open…" Command="{Binding LoadSessionFileCommand}" Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}" ToolTip="Load a session file from disk" />
+                <Button Content="Delete" Command="{Binding DeleteSessionCommand}" Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}" ToolTip="Delete the selected saved session" />
+                <Border Width="1" Background="{DynamicResource OutlineBrush}" Margin="10,2" />
+                <Button Content="{Binding ThemeButtonText}" Click="OnToggleTheme"
+                        Style="{StaticResource IconButton}" ToolTip="Switch between dark and light" />
+                <Button Content="About" Click="OnShowAbout" Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ══ Body ══ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="380" MinWidth="330" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="*" MinWidth="520" />
+            </Grid.ColumnDefinitions>
+
+            <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                          Background="Transparent" ResizeBehavior="PreviousAndNext" />
+
+            <!-- ─── Configuration ─── -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
+                <StackPanel>
+
+                    <!-- Connection -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="CONNECTION" Style="{StaticResource SectionHeading}" />
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Server" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Column="1" Text="{Binding Server, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Instance name, for example localhost, .\SQLEXPRESS or server,1433" />
+                            </Grid>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Database" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Column="1" Text="{Binding Database, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Any database. AdventureWorks unlocks the sample workload; anything else uses a generic one." />
+                            </Grid>
+
+                            <CheckBox Content="Windows authentication" IsChecked="{Binding UseIntegratedSecurity}" />
+
+                            <Grid Margin="0,4,0,0" Visibility="{Binding UsesSqlLogin, Converter={StaticResource BoolToVisibility}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Login" Style="{StaticResource FieldLabel}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,6" Text="{Binding Username}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Password" Style="{StaticResource FieldLabel}" />
+                                <PasswordBox Grid.Row="1" Grid.Column="1" x:Name="PasswordInput"
+                                             PasswordChanged="OnPasswordChanged" />
+                            </Grid>
+
+                            <CheckBox Content="Encrypt connection" IsChecked="{Binding Encrypt}" Margin="0,8,0,0" />
+                            <CheckBox Content="Trust server certificate" IsChecked="{Binding TrustServerCertificate}"
+                                      ToolTip="Convenient for lab instances with self-signed certificates. Disables the check that would catch an intercepted connection." />
+
+                            <TextBlock Text="{Binding RiskHint}" Style="{StaticResource HintText}"
+                                       Foreground="{DynamicResource WarningBrush}"
+                                       Visibility="{Binding RiskHint, Converter={StaticResource EmptyStringToVisibility}}" />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="Test connection" Command="{Binding TestConnectionCommand}" />
+                                <Button Content="Setup" Command="{Binding SetupCommand}" Margin="6,0,0,0"
+                                        ToolTip="Create dbo.LoadGen and fill it with rows. Required before any write workload." />
+                                <Button Content="Remove" Command="{Binding TeardownCommand}" Margin="6,0,0,0"
+                                        ToolTip="Drop dbo.LoadGen and leave the database as it was." />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding SchemaDescription}" Style="{StaticResource HintText}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Workload -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="WORKLOAD" Style="{StaticResource SectionHeading}" />
+
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Preset" Style="{StaticResource FieldLabel}" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding Workload.PresetNames}"
+                                          SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
+                            </Grid>
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="92" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Users" Style="{StaticResource FieldLabel}"
+                                           ToolTip="Concurrent sessions. Each runs one statement at a time, so this is the real concurrency the server sees." />
+                                <Slider Grid.Row="0" Grid.Column="1" Minimum="1" Maximum="256"
+                                        Value="{Binding Workload.VirtualUsers}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.VirtualUsers}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Duration" Style="{StaticResource FieldLabel}" />
+                                <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="3600"
+                                        Value="{Binding Workload.DurationSeconds}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.DurationSeconds, StringFormat={}{0} s}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Ramp-up" Style="{StaticResource FieldLabel}"
+                                           ToolTip="Spreads user starts over this window so the first seconds are not a thundering herd." />
+                                <Slider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="120"
+                                        Value="{Binding Workload.RampUpSeconds}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.RampUpSeconds, StringFormat={}{0} s}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Think time" Style="{StaticResource FieldLabel}"
+                                           ToolTip="Mean pause between operations for each user." />
+                                <Slider Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="2000"
+                                        Value="{Binding Workload.ThinkTimeMs}" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.ThinkTimeMs, StringFormat={}{0} ms}" />
+                            </Grid>
+
+                            <CheckBox Content="Vary think time (Poisson arrivals)" IsChecked="{Binding Workload.ThinkTimeJitter}"
+                                      ToolTip="Draws each pause from an exponential distribution. Fixed pauses make every user tick in lockstep and hide queueing." />
+
+                            <TextBlock Text="{Binding Workload.DurationHint}" Style="{StaticResource HintText}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- DML mix -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="DML MIX" Style="{StaticResource SectionHeading}" />
+
+                            <CheckBox Content="Safe mode — reads only" IsChecked="{Binding Workload.SafeMode}"
+                                      FontWeight="SemiBold"
+                                      ToolTip="Enforced inside the engine, not just in this window: with safe mode on, no write statement can be generated at all." />
+
+                            <Grid Margin="0,8,0,0" IsEnabled="{Binding Workload.WritesEnabled}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="92" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Read" Style="{StaticResource FieldLabel}" />
+                                <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Workload.ReadPercent}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.ReadPercent, StringFormat={}{0}%}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Insert" Style="{StaticResource FieldLabel}" />
+                                <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Workload.InsertPercent}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.InsertPercent, StringFormat={}{0}%}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Update" Style="{StaticResource FieldLabel}" />
+                                <Slider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Workload.UpdatePercent}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.UpdatePercent, StringFormat={}{0}%}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Delete" Style="{StaticResource FieldLabel}" />
+                                <Slider Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Workload.DeletePercent}" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.DeletePercent, StringFormat={}{0}%}" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Batch rows" Style="{StaticResource FieldLabel}"
+                                           ToolTip="Rows touched by each write operation." />
+                                <Slider Grid.Row="4" Grid.Column="1" Minimum="1" Maximum="1000" Value="{Binding Workload.BatchRows}" />
+                                <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.BatchRows}" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Row payload" Style="{StaticResource FieldLabel}"
+                                           ToolTip="Generated bytes per written row, split between the text and binary columns." />
+                                <Slider Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="65536" TickFrequency="512"
+                                        Value="{Binding Workload.PayloadBytes}" />
+                                <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.PayloadBytes, StringFormat={}{0} B}" />
+                            </Grid>
+
+                            <TextBlock Text="{Binding Workload.WriteVolumeHint}" Style="{StaticResource HintText}" />
+                            <TextBlock Text="{Binding Workload.SafetyHint}" Style="{StaticResource HintText}"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Chaos -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="CHAOS" Style="{StaticResource SectionHeading}" />
+
+                            <CheckBox Content="Enable chaos operations" IsChecked="{Binding Workload.ChaosMode}"
+                                      FontWeight="SemiBold" />
+
+                            <StackPanel Margin="0,6,0,0"
+                                        Visibility="{Binding Workload.ChaosMode, Converter={StaticResource BoolToVisibility}}">
+                                <CheckBox Content="Bad queries — cartesian joins, non-SARGable predicates"
+                                          IsChecked="{Binding Workload.ChaosBadQueries}" />
+                                <CheckBox Content="Concurrency — blocking chains, deadlocks, lock escalation"
+                                          IsChecked="{Binding Workload.ChaosConcurrency}" />
+                                <CheckBox Content="Resource burners — CPU, memory grants, tempdb"
+                                          IsChecked="{Binding Workload.ChaosResourceBurners}" />
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="92" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Intensity" Style="{StaticResource FieldLabel}"
+                                               ToolTip="Share of operations drawn from the chaos catalogue. Below 100 the run stays a recognisable workload with chaos mixed through it." />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="100"
+                                            Value="{Binding Workload.ChaosIntensityPercent}" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                               Text="{Binding Workload.ChaosIntensityPercent, StringFormat={}{0}%}" />
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Advanced -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="ADVANCED" Style="{StaticResource SectionHeading}" />
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="92" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Timeout" Style="{StaticResource FieldLabel}" />
+                                <Slider Grid.Row="0" Grid.Column="1" Minimum="1" Maximum="300"
+                                        Value="{Binding Workload.CommandTimeoutSeconds}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.CommandTimeoutSeconds, StringFormat={}{0} s}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Error budget" Style="{StaticResource FieldLabel}"
+                                           ToolTip="Total errors across all users before the run stops. Zero disables the budget." />
+                                <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="10000" TickFrequency="50"
+                                        Value="{Binding Workload.MaxErrors}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource ValueLabel}"
+                                           Text="{Binding Workload.MaxErrors}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Seed" Style="{StaticResource FieldLabel}"
+                                           ToolTip="Fixing the seed makes a run reproducible — the same operations in the same order. Leave blank to seed from the clock." />
+                                <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                                         Text="{Binding Workload.RandomSeed, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Manual actions -->
+                    <Border Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Text="MANUAL DEMONSTRATIONS" Style="{StaticResource SectionHeading}" />
+                            <TextBlock Style="{StaticResource HintText}" Margin="0,0,0,8"
+                                       Text="These act on rows in dbo.LoadGen and can be used on their own, without a workload running." />
+
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{Binding BlockingButtonText}" Command="{Binding ForceBlockingCommand}"
+                                        ToolTip="Holds an exclusive row lock so you can watch other sessions queue behind it." />
+                                <Button Content="Create deadlock" Command="{Binding ForceDeadlockCommand}" Margin="6,0,0,0"
+                                        ToolTip="Produces a real deadlock between two connections and shows you the graph." />
+                            </StackPanel>
+
+                            <Button Content="Kill leftover sessions" Command="{Binding KillSessionsCommand}" Margin="0,6,0,0"
+                                    HorizontalAlignment="Left"
+                                    ToolTip="Terminates any session this tool still has open on the server." />
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ─── Dashboard ─── -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Run controls -->
+                <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="12,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <Button Content="▶  Start" Command="{Binding StartCommand}" Style="{StaticResource AccentButton}"
+                                    MinWidth="110" />
+                            <Button Content="■  Stop" Command="{Binding StopCommand}" Style="{StaticResource DangerButton}"
+                                    Margin="8,0,0,0" MinWidth="110" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="18,0">
+                            <TextBlock Text="{Binding RunStateText}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock Text="{Binding StatusText}" Style="{StaticResource HintText}" Margin="0,1,0,0" />
+                        </StackPanel>
+
+                        <Button Grid.Column="2" Content="Export report…" Command="{Binding ExportReportCommand}"
+                                VerticalAlignment="Center"
+                                ToolTip="Write the finished run to JSON or CSV so it can be compared with another run." />
+                    </Grid>
+                </Border>
+
+                <!-- Metric tiles -->
+                <Border Grid.Row="1" Style="{StaticResource CardBorder}">
+                    <WrapPanel>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="Operations" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.Operations}" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="Throughput" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.Throughput}" Style="{StaticResource MetricValue}"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                                <TextBlock Text="{Binding Metrics.AverageThroughput}" Style="{StaticResource MetricCaption}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="p50 latency" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.LatencyP50}" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="p95 latency" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.LatencyP95}" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="p99 latency" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.LatencyP99}" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="Errors" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.ErrorCount}" Style="{StaticResource MetricValue}" />
+                                <TextBlock Text="{Binding Metrics.ErrorRate}" Style="{StaticResource MetricCaption}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="Deadlock victims" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.DeadlockVictims}" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="Active users" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.ActiveUsers}" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricTile}">
+                            <StackPanel>
+                                <TextBlock Text="Elapsed" Style="{StaticResource MetricCaption}" />
+                                <TextBlock Text="{Binding Metrics.Elapsed}" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                </Border>
+
+                <!-- Charts -->
+                <Border Grid.Row="2" Style="{StaticResource CardBorder}" Height="200">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <controls:SparklineChart Grid.Column="0" Margin="0,0,8,0"
+                                                 Title="Operations per second"
+                                                 Unit="ops/s"
+                                                 Values="{Binding Metrics.ThroughputSeries}"
+                                                 Markers="{Binding Metrics.ErrorSeries}"
+                                                 LineBrush="{DynamicResource ChartLineBrush}"
+                                                 FillBrush="{DynamicResource ChartFillBrush}"
+                                                 MarkerBrush="{DynamicResource ChartMarkerBrush}"
+                                                 GridBrush="{DynamicResource ChartGridBrush}"
+                                                 LabelBrush="{DynamicResource MutedForegroundBrush}" />
+
+                        <controls:SparklineChart Grid.Column="1"
+                                                 Title="Mean latency"
+                                                 Unit="ms"
+                                                 ValueFormat="F1"
+                                                 Values="{Binding Metrics.LatencySeries}"
+                                                 LineBrush="{DynamicResource ChartLatencyBrush}"
+                                                 FillBrush="{DynamicResource ChartLatencyFillBrush}"
+                                                 GridBrush="{DynamicResource ChartGridBrush}"
+                                                 LabelBrush="{DynamicResource MutedForegroundBrush}" />
+                    </Grid>
+                </Border>
+
+                <!-- Detail tabs -->
+                <Border Grid.Row="3" Style="{StaticResource CardBorder}" Margin="0">
+                    <TabControl>
+
+                        <TabItem Header="Breakdown">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <ListView Grid.Row="0" ItemsSource="{Binding Metrics.Categories}">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Category" Width="120" DisplayMemberBinding="{Binding Category}" />
+                                            <GridViewColumn Header="Operations" Width="100" DisplayMemberBinding="{Binding Operations, StringFormat=N0}" />
+                                            <GridViewColumn Header="Errors" Width="80" DisplayMemberBinding="{Binding Errors, StringFormat=N0}" />
+                                            <GridViewColumn Header="Rows" Width="110" DisplayMemberBinding="{Binding Rows, StringFormat=N0}" />
+                                            <GridViewColumn Header="p50 ms" Width="85" DisplayMemberBinding="{Binding P50, StringFormat=F1}" />
+                                            <GridViewColumn Header="p95 ms" Width="85" DisplayMemberBinding="{Binding P95, StringFormat=F1}" />
+                                            <GridViewColumn Header="p99 ms" Width="85" DisplayMemberBinding="{Binding P99, StringFormat=F1}" />
+                                            <GridViewColumn Header="max ms" Width="85" DisplayMemberBinding="{Binding Max, StringFormat=F1}" />
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+
+                                <TextBlock Grid.Row="1" Text="Errors by cause" Style="{StaticResource SectionHeading}"
+                                           Margin="0,10,0,4"
+                                           Visibility="{Binding Metrics.HasErrors, Converter={StaticResource BoolToVisibility}}" />
+
+                                <ListView Grid.Row="2" MaxHeight="150" ItemsSource="{Binding Metrics.Errors}"
+                                          Visibility="{Binding Metrics.HasErrors, Converter={StaticResource BoolToVisibility}}">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Cause" Width="280" DisplayMemberBinding="{Binding Description}" />
+                                            <GridViewColumn Header="Count" Width="100" DisplayMemberBinding="{Binding Count, StringFormat=N0}" />
+                                            <GridViewColumn Header="Share" Width="90"
+                                                            DisplayMemberBinding="{Binding Share, Converter={StaticResource Share}}" />
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Sessions &amp; blocking">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="{Binding Monitor.SessionsStatus}"
+                                           Style="{StaticResource HintText}" Margin="0,0,0,8" />
+
+                                <ListView Grid.Row="1" ItemsSource="{Binding Monitor.BlockingRows}">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Session" Width="320">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Summary}"
+                                                                   Margin="{Binding Indent, Converter={StaticResource Indent}}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsHead}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Wait type" Width="170" DisplayMemberBinding="{Binding WaitType}" />
+                                            <GridViewColumn Header="Wait ms" Width="90" DisplayMemberBinding="{Binding WaitTimeMs, StringFormat=N0}" />
+                                            <GridViewColumn Header="Application" Width="120" DisplayMemberBinding="{Binding Program}" />
+                                            <GridViewColumn Header="Statement" Width="520" DisplayMemberBinding="{Binding Statement}" />
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Waits">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="{Binding Monitor.WaitsStatus}"
+                                           Style="{StaticResource HintText}" Margin="0,0,0,8" />
+
+                                <ListView Grid.Row="1" ItemsSource="{Binding Monitor.Waits}">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Wait type" Width="300" DisplayMemberBinding="{Binding WaitType}" />
+                                            <GridViewColumn Header="Total ms" Width="120" DisplayMemberBinding="{Binding TotalMs, StringFormat=N0}" />
+                                            <GridViewColumn Header="Resource ms" Width="120" DisplayMemberBinding="{Binding ResourceMs, StringFormat=N0}" />
+                                            <GridViewColumn Header="Waits" Width="110" DisplayMemberBinding="{Binding Waits, StringFormat=N0}" />
+                                            <GridViewColumn Header="Avg ms" Width="100" DisplayMemberBinding="{Binding AverageMs, StringFormat=F2}" />
+                                            <GridViewColumn Header="Share" Width="90"
+                                                            DisplayMemberBinding="{Binding Share, Converter={StaticResource Share}}" />
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Deadlocks">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="{Binding Monitor.DeadlocksStatus}"
+                                           Style="{StaticResource HintText}" Margin="0,0,0,8" />
+
+                                <ListBox Grid.Row="1" ItemsSource="{Binding Monitor.Deadlocks}"
+                                         HorizontalContentAlignment="Stretch"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource ControlBackground}"
+                                                    BorderBrush="{DynamicResource OutlineBrush}" BorderThickness="1"
+                                                    CornerRadius="4" Padding="10" Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Timestamp}" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource DangerBrush}" />
+                                                        <TextBlock Text="  ·  victim " Foreground="{DynamicResource MutedForegroundBrush}" />
+                                                        <TextBlock Text="{Binding Victims}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="  ·  " Foreground="{DynamicResource MutedForegroundBrush}" />
+                                                        <TextBlock Text="{Binding Involves}" Foreground="{DynamicResource MutedForegroundBrush}" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                               FontFamily="Consolas" FontSize="11" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Planned operations">
+                            <ListBox ItemsSource="{Binding PlannedOperations}"
+                                     Background="{DynamicResource SurfaceBackground}"
+                                     Foreground="{DynamicResource ForegroundBrush}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="2" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </TabItem>
+
+                        <TabItem Header="Log">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="Level" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox Width="110" ItemsSource="{Binding Log.AvailableLevels}"
+                                              SelectedItem="{Binding Log.MinimumLevel, Mode=TwoWay}" />
+                                    <CheckBox Content="Follow" IsChecked="{Binding Log.AutoScroll}" Margin="12,0,0,0"
+                                              VerticalAlignment="Center" />
+                                    <Button Content="Clear" Command="{Binding ClearLogCommand}" Margin="12,0,0,0"
+                                            Style="{StaticResource IconButton}" />
+                                    <TextBlock Text="{Binding Log.StatusText}" Style="{StaticResource HintText}"
+                                               Margin="14,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <ListBox Grid.Row="1" x:Name="LogList" ItemsSource="{Binding Log.Lines}"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Text}" FontFamily="Consolas" FontSize="11">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource ConsoleForeground}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Level}" Value="Error">
+                                                                <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                                                <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Level}" Value="Success">
+                                                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Level}" Value="Debug">
+                                                                <Setter Property="Foreground" Value="{DynamicResource MutedForegroundBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Level}" Value="Trace">
+                                                                <Setter Property="Foreground" Value="{DynamicResource MutedForegroundBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </TabItem>
+
+                    </TabControl>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ══ Status bar ══ -->
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBackground}"
+                BorderBrush="{DynamicResource OutlineBrush}" BorderThickness="1"
+                CornerRadius="4" Padding="10,6" Margin="0,10,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding SchemaDescription}"
+                           Foreground="{DynamicResource MutedForegroundBrush}" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="Sessions on server: " Foreground="{DynamicResource MutedForegroundBrush}" />
+                    <TextBlock Text="{Binding Monitor.ActiveSessionCount}" FontWeight="SemiBold" />
+                    <TextBlock Text="   ·   blocked: " Foreground="{DynamicResource MutedForegroundBrush}" />
+                    <TextBlock Text="{Binding Monitor.BlockedSessionCount}" FontWeight="SemiBold" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

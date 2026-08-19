@@ -1,296 +1,286 @@
 # DBTickler
 
-SQL Server Stress Tester and Learning Tool
+**SQL Server workload generator and learning tool**
 
 ![DBTickler Demo](https://github.com/jakemorgangit/DBTickler/blob/main/DBTickler.gif)
 
-**DBTickler** is a lightweight, practical SQL Server workload generator
-designed for DBAs, developers, students, and performance engineers. It
-creates realistic activity inside a database so you can observe
-sessions, waits, locking, blocking, and deadlocks in real time. Whether
-you're learning SQL Server internals or validating monitoring tools,
-DBTickler brings an otherwise idle database to life.
+DBTickler creates realistic activity inside a SQL Server database so you can watch
+sessions, waits, locking, blocking and deadlocks happen in real time — and then shows
+you what happened. It is built for DBAs, developers, students and performance engineers
+who need a repeatable way to bring an idle database to life.
+
+Built with .NET 10. Ships as a WPF desktop app and a command-line tool that shares the
+same engine.
+
+---
+
+## What's new in v2
+
+v2 is a rewrite. The source now lives in this repository, the engine was rebuilt around
+honest concurrency and real latency measurement, and the observability the tool always
+promised is actually in the box.
+
+### The engine
+
+| | v1 | v2 |
+|---|---|---|
+| Concurrency | "Threads" each fanned out `BatchSize / 20` concurrent statements — 32 threads at batch 1000 opened ~1,600 connections | One statement per virtual user at a time, so the number you set is the concurrency the server sees |
+| Latency | Not measured at all | Full percentiles (p50 / p90 / p95 / p99 / p99.9 / max) per operation category, from an HdrHistogram-style histogram |
+| Payload generation | Built strings a character at a time — up to ~200,000 appends per row, making the client the bottleneck | Sliced from a pre-generated buffer: one memory copy per row |
+| Error budget | Applied per worker, silently multiplying the real threshold by the thread count | A single global count |
+| Timing | `DateTime.Now`, so a clock adjustment corrupted the run's duration and throughput | Monotonic `Stopwatch` |
+| Stopping | Advertised "immediate stop using KILL", but never set an application name on its connections, so the `KILL` matched nothing | Every connection is stamped `Application Name=DBTickler`, and stop cancels clients *and* kills those sessions server-side |
+| Randomness | One `Random` shared across concurrent workers — a data race that can leave it returning a constant | One seeded generator per virtual user |
+| End of run | The UI declared the run finished but never cancelled the workers, which kept hammering the server | The run ends when it says it does, with a reported reason |
+
+### New capabilities
+
+- **Works on any database.** v1 hard-coded AdventureWorks object names, so pointing it
+  anywhere else produced a 100% error rate with no explanation. v2 probes the target first
+  and builds its workload from what is actually there — the AdventureWorks sample schema if
+  present, otherwise a generic workload over discovered tables, falling back to system
+  catalogue scans on an empty database.
+- **Live server-side observability.** Active sessions, blocking chains rendered as trees
+  rooted at the head blocker, wait statistics diffed against a baseline taken at the start
+  of the run, and deadlock graphs read from the always-on `system_health` session.
+- **Deadlocks explained in plain English.** Captured graphs are parsed and narrated —
+  which session wanted which lock, who held it, and who was rolled back — instead of
+  leaving you to read the XML.
+- **Reproducible runs.** Fix the random seed and the same operations run in the same order.
+- **Ramp-up.** Virtual users start staggered, so the first seconds measure the server
+  rather than connection-pool warm-up.
+- **Poisson arrivals.** Think time is drawn from an exponential distribution by default,
+  which is what real user populations look like and what makes queueing behaviour visible.
+- **Exportable results.** JSON, a CSV summary, and a per-second throughput series, so runs
+  can be compared with each other.
+- **A production guard.** Before any destructive run, DBTickler checks for Always On,
+  clustering, replication, FULL recovery, other applications' connections and
+  production-looking names, and asks for confirmation.
+- **A command-line tool** for scripted and CI use, with latency and error-rate thresholds
+  that set the exit code.
+- **Charts, tests and CI.** Live throughput and latency charts in the app, a unit-test
+  suite for the engine and analysis code, and a GitHub Actions workflow that builds,
+  tests and publishes.
+
+### Safety
+
+DBTickler only ever modifies its own table, `dbo.LoadGen`. Your tables are read from,
+never written to. Safe mode is enforced inside the engine rather than by the UI, so a
+loaded configuration file cannot smuggle writes past it.
+
+---
+
+## Who is this for?
+
+- **New DBAs** who need a safe way to see how SQL Server behaves under load
+- **Students** exploring locking, blocking, waits and deadlocks
+- **Performance engineers** validating monitoring, alerting and dashboards
+- **Consultants** demonstrating database behaviour to clients
+- **Developers** investigating how their code reacts under concurrency
+- **Interview candidates** practising deadlock and blocking demonstrations
+- Anyone needing consistent, reproducible load on a non-production SQL Server
+
+---
+
+## Quick start
+
+### Desktop app
+
+1. Download `DBTickler.exe` from the [Releases](https://github.com/jakemorgangit/DBTickler/releases/) page — portable, no installation.
+2. Enter your server and database, and press **Test connection**.
+3. Press **Setup** to create `dbo.LoadGen` (needed for any write workload).
+4. Pick a preset, then press **Start**.
+
+### Command line
 
-Built with .NET 8.0 and WPF, it provides a clean, modern interface with
-real-time metrics and configurable workloads that range from gentle
-throughput to aggressive chaos scenarios.
+```bash
+# See what DBTickler makes of a target before running anything
+dbtickler probe --server localhost --database AdventureWorks2022
 
-## Who Is This For?
+# Read-only load — safe against anything you are allowed to query
+dbtickler run --duration 60
 
-DBTickler is especially useful for:
+# A write workload, with results kept
+dbtickler run --profile oltp --unsafe --users 32 --duration 120 --json run.json
 
--   **New DBAs** who need a safe way to see how SQL Server behaves under
-    load\
--   **Students** or self-learners exploring locking, blocking, waits,
-    and deadlocks
--   **Performance engineers** validating monitoring, alerting,
-    dashboards, or baselining
--   **Consultants** demonstrating database behaviour to clients\
--   **Developers** investigating how their code reacts under
-    concurrency
--   **Interview candidates** practising deadlocks, blocking
-    demonstrations, and DMVs
--   **Anyone** needing consistent, reproducible load on a non-production
-    SQL Server
+# Chaos, reproducibly
+dbtickler run --profile chaos --unsafe --duration 60 --seed 42
 
-It fills the common gap between *theory* and *what SQL Server actually
-looks like when something is happening*.
+# Watch blocking as it happens
+dbtickler sessions --watch
 
-## Overview
+# Fail a CI job if the server cannot keep up
+dbtickler run --profile oltp --unsafe --duration 60 --max-p95 250 --max-error-rate 1
+```
 
-DBTickler enables you to:
+Run `dbtickler help` for the full option list. Exit codes: `0` ok, `1` error, `2` bad
+usage, `3` cancelled, `4` threshold breached.
 
--   Generate **realistic and configurable workloads**
--   Stress test SQL Server under **controlled or chaotic** conditions
--   Simulate **blocking**, **deadlocks**, **lock escalation**, and
-    **resource contention**
--   Observe monitoring tools reacting to **predictable and repeatable
-    events**
--   Evaluate SQL Server resilience, stability, and throughput\
--   Use AdventureWorks (recommended) or any target database
+Pass the password through `DBTICKLER_PASSWORD` rather than `--password` in scripts, so it
+does not land in shell history or CI logs.
 
-## Key Features
+---
 
-### 🎯 Workload Generation
+## Requirements
 
--   Multi-threaded execution (1--128 simulated users)\
--   Configurable DML mix (Read / Insert / Update / Delete)
--   Adjustable batch sizes (1--1000 rows)
--   Optional think time for realistic pacing
--   Duration-based tests (10 seconds to 1 hour)
+- **Running the app:** Windows 10 or 11 (64-bit). The published executable is
+  self-contained — no .NET installation needed.
+- **Running the CLI:** Windows, Linux or macOS.
+- **Target:** SQL Server 2016 or later, or Azure SQL. AdventureWorks unlocks the sample
+  workload; any other database gets a generic one.
+- **Building from source:** .NET 10 SDK. The desktop app builds on Linux and in CI via
+  `EnableWindowsTargeting`, but only runs on Windows.
 
-### 🔒 Safe Mode
+### Permissions
 
-A safety feature for demonstrations and production-adjacent
-environments:
+| To do this | You need |
+|---|---|
+| Read-only workload | `SELECT` on the tables being read |
+| Write workload, setup | `CREATE TABLE` in `dbo`, plus `INSERT`/`UPDATE`/`DELETE` on `dbo.LoadGen` |
+| Sessions, blocking, waits, deadlock graphs | `VIEW SERVER STATE` |
+| Stop with server-side session termination | `ALTER ANY CONNECTION` |
 
--   Automatically forces 100% reads
--   Disables all write operations
--   Adjusts sliders and controls to prevent accidental modification
+Missing the observability permissions degrades those panels to an explanatory message; it
+never stops a run.
 
-### 💥 Chaos Mode
+---
 
-Purposefully stress SQL Server for resilience testing:
+## Workload presets
 
--   **Bad Queries:** CPU burners, Cartesian joins, heavy sorts
--   **Concurrency Attacks:** Blocking chains, deadlock orchestration
--   **Resource Burners:** TempDB pressure, memory-heavy operations
+| Preset | Users | Mix | What it is for |
+|---|---|---|---|
+| `readonly` | 16 | 100% read | Safe first run against any database |
+| `oltp` | 16 | 70/12/12/6 with think time | A steady, realistic transactional workload |
+| `write-heavy` | 32 | 20/45/25/10, large batches | Log flush, lock escalation, page splits |
+| `chaos` | 24 | Mixed, chaos at 60% | Monitoring and alert validation |
 
-Useful for monitoring validations, alert testing, and training
-scenarios.
+Every parameter is adjustable from the preset you start with.
 
-### 🎮 Manual Attack Tools
+### Parameters
 
--   **Force Blocking** -- Hold locks for 5--60 seconds
--   **Create Deadlock** -- Instantly trigger a deadlock for learning or
-    demo purposes
+| Parameter | Range | What it does |
+|---|---|---|
+| Virtual users | 1–512 | Concurrent sessions, each running one statement at a time |
+| Duration | 0–86,400 s | Run length; 0 runs until you stop it |
+| Ramp-up | 0–3,600 s | Window over which users start |
+| Batch rows | 1–100,000 | Rows touched per write operation |
+| Row payload | 0–8 MB | Generated bytes per written row |
+| Think time | 0–600,000 ms | Mean pause between operations, exponentially distributed by default |
+| Command timeout | 1–3,600 s | Per-statement timeout |
+| Error budget | 0+ | Total errors across all users before the run stops; 0 disables |
+| Chaos intensity | 0–100% | Share of operations drawn from the chaos catalogue |
+| Seed | any | Fix it to make the run reproducible |
 
-### 💾 Session Management
+The DML mix must total 100%; the sliders rebalance themselves as you drag them.
 
--   Save named configurations
--   Load and switch between test setups
--   Import/export sessions for reuse across environments
+---
 
-### 📊 Real-time Metrics
+## Chaos operations
 
--   Operations executed
--   Errors detected
--   Test duration
--   Throughput (ops/sec)
--   Real-time SQL log pane
+Grouped by what they attack, and built only when the target supports them.
 
-### 🎨 Clean, Modern UI
+**Bad queries** — cartesian explosion, non-SARGable predicates that wrap the indexed
+column in a function, implicit conversions that defeat an index seek.
 
--   Light/Dark themes
--   Tooltips for every control
--   Windows 11-style title bar
--   Colour coded status feedback
+**Concurrency** — a deadlock trap that takes two row locks in opposite orders on
+alternating users (so a cycle reliably forms rather than depending on luck), blocking
+chains, lock escalation past the 5,000-lock threshold, and cursor loops.
 
-### ⚡ Performance
+**Resource burners** — cryptographic hashing for pure CPU, large sorts that request big
+memory grants, and tempdb pressure through a materialised intermediate result.
 
--   Immediate stop (using KILL against active sessions)
--   Asynchronous, non-blocking UI updates
--   Graceful thread and task cleanup
+### Manual demonstrations
 
-## Installation
+**Force blocking** holds an exclusive row lock so you can watch other sessions queue
+behind it. The wait is client-side, so releasing it is instant.
 
-### Prerequisites
+**Create deadlock** produces a real deadlock between two connections in the same process
+and reports which was chosen as the victim. v1 needed you to launch a second copy of the
+app and click at the right moment, coordinating through lock files in the temp directory.
 
--   Windows 10 or 11 (64-bit)
--   SQL Server 2016 or later
--   AdventureWorks (recommended for full feature coverage)
+---
 
-### Quick Start
+## Sessions
 
-1.  Download the latest release from the **Releases** page https://github.com/jakemorgangit/DBTickler/releases/
-2.  Run `DBTickler.exe` (portable -- no installation required)
+Save named configurations from the header bar. They live in
+`%APPDATA%\DBTickler\Sessions\`.
 
-## Usage
+Passwords are protected with DPAPI, scoped to the current Windows user, so the file is
+useless to anyone else on the machine. On platforms without DPAPI the password is not
+saved at all rather than being written in clear text.
 
-### Basic Workflow
+---
 
-1.  **Configure Connection**
-    Enter instance name, database, and authentication method.
+## Building from source
 
-2.  **Test Connection**
-    Confirm SQL connectivity.
+```bash
+git clone https://github.com/jakemorgangit/DBTickler.git
+cd DBTickler
 
-3.  **Setup DB Objects (optional)**
-    Creates the `dbo.LoadGen` table for write operations.
+dotnet build
+dotnet test
 
-4.  **Configure Workload Parameters**
-    Threads, batch size, duration, think time, max errors.
+# Desktop app (Windows only at runtime, builds anywhere)
+dotnet publish src/DBTickler.App/DBTickler.App.csproj -c Release -r win-x64 --self-contained
 
-5.  **Set DML Mix**
-    Adjust reads/writes or enable Safe Mode.
+# Command-line tool
+dotnet publish src/DBTickler.Cli/DBTickler.Cli.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+```
 
-6.  **Advanced Options**
-    Toggle Safe Mode or Chaos Mode as needed.
+### Layout
 
-7.  **Start Test**
-    Watch real-time metrics, then stop when ready.
+```
+src/DBTickler.Core/     Engine, metrics, workloads, observability — platform-neutral
+src/DBTickler.App/      WPF desktop application (MVVM)
+src/DBTickler.Cli/      Command-line tool
+tests/                  Unit tests for the core library
+```
 
-### Chaos Mode
+All the logic lives in `DBTickler.Core`, which has no UI dependency and no dependency on a
+live database — the engine talks to an `ISqlSessionFactory` abstraction. That is what lets
+the concurrency, ramp-up, cancellation, error-budget and metrics behaviour be tested
+without a SQL Server, and it is why the desktop app and the CLI cannot drift apart.
 
-Enable the Chaos Mode checkbox to unlock stress tests:
-
--   Bad query patterns
--   Blocking and deadlock tests
--   High-CPU and high-memory operations
-
-Manual actions:
-
--   **Force Blocking** -- hold locks
--   **Create Deadlock** -- generate immediate deadlock
-
-### Session Management
-
-**Save sessions:**\
-Click the save icon, enter a name, stored under:
-
-    %APPDATA%\DBTickler\Sessions\
-
-**Load sessions:**\
-Select from dropdown or browse manually.
-
-### Multi-Instance Testing
-
-Open additional DBTickler windows for: - Multiple databases\
-- Multiple SQL Servers
-- Varied concurrent workloads
-
-## Configuration Details
-
-### Connection Settings
-
--   Integrated or SQL authentication
--   30-second timeout
--   Trust server certificate enabled
-
-
-### Workload Parameters
-| Parameter | Range | Default | Description |
-|-----------|-------|---------|-------------|
-| Threads | 1-128 | 32 | Concurrent worker threads |
-| Batch Size | 1-1000 | 100 | Rows per operation |
-| Duration | 10-3600s | 60s | Test duration |
-| Think Time | 0-1000ms | 0ms | Delay between operations |
-| Max Errors | 0-1000 | 50 | Error threshold before stopping |
-
-### DML Mix
-
-Define percentage split for: 
-- Reads
-- Inserts
-- Updates
-- Deletes
-
-Total must equal 100%.
-
-## Query Types
-
-### Normal Mode
-
-**Reads:**
-- Multi-table joins
-- Aggregations
-- Window functions
-- Wildcard filtering
-
-**Writes:**
-- Inserts into `dbo.LoadGen`
-- Randomised updates
-- Deletes based on row selection
-
-### Chaos Mode
-
-**Bad Reads:**\
-- Cartesian joins
-- Cryptographic CPU burners
-- Heavy sorts and aggregations
-- Lock hint overload
-
-**Bad Writes:**
-- Cursor loops
-- Long transactions
-- Deadlock-prone updates
-- Blocking patterns
+---
 
 ## Troubleshooting
 
-### Connection Problems
+**Connection fails.** Check SQL Server is running and reachable on TCP 1433, that the
+login has rights to the database, and that the instance name is right. If the server
+presents a self-signed certificate, leave *Trust server certificate* ticked.
 
--   Ensure SQL Server is running
--   Check firewalls (TCP 1433)
--   Verify permissions
--   Test using SSMS
+**"dbo.LoadGen does not exist".** Press **Setup**, or run `dbtickler setup`. Write
+workloads need it; read-only runs do not.
 
-### Permissions Required
+**Everything errors immediately.** Run `dbtickler probe` — it reports what DBTickler found
+on the target and exactly which operations it would run.
 
-Minimum recommended: - SELECT on referenced tables
-- INSERT/UPDATE/DELETE on `dbo.LoadGen`
-- VIEW SERVER STATE (for session management)
+**No waits, sessions or deadlocks shown.** The login needs `VIEW SERVER STATE`. Azure SQL
+Database does not expose the `system_health` session, so deadlock graphs are unavailable
+there.
 
-### High Error Counts
+**Throughput is lower than expected.** Check the p95 latency and the wait types before
+assuming the server is at fault — with think time set, throughput is bounded by
+`users / think time`, not by the server.
 
--   Check error log
--   Validate AdventureWorks schema
--   Reduce chaos severity
-
-## Technical Details
-
--   **Framework:** .NET 8
--   **UI:** WPF
--   **Client:** Microsoft.Data.SqlClient
--   **Async Model:** Task-based
--   **Session Storage:** JSON under `%APPDATA%`
-
-SQL Server features used: - DMVs
-- Lock hints
-- Isolation level control
-- Dynamic SQL
-- Session termination
+---
 
 ## Contributing
 
-Issues, improvements, and feature requests are welcome.
+Issues, improvements and feature requests are welcome.
 
 ## License
 
-Copyright © 2025
-Jake Morgan -- Blackcat Data Solutions Limited
+Copyright © 2025 Jake Morgan — Blackcat Data Solutions Limited
 
 ## About
 
-DBTickler is developed by
-**Blackcat Data Solutions Limited**
-https://blackcat.wales
+DBTickler is developed by **Blackcat Data Solutions Limited** — https://blackcat.wales
 
-For questions, support, or consulting, visit our website.
+For questions, support or consulting, visit our website.
 
-------------------------------------------------------------------------
+---
 
-⚠️ **Warning:**
-DBTickler generates real workload and can cause blocking, deadlocks, and
-resource pressure. Always use it in non-production environments unless
-Safe Mode is enabled.
+> ⚠️ **Warning**
+> DBTickler generates real workload and can cause blocking, deadlocks and resource
+> pressure. Use it on non-production systems, or with Safe mode enabled.
