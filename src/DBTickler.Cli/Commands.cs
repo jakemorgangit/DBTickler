@@ -141,6 +141,10 @@ internal static class Commands
                 Console.WriteLine(
                     $"{Truncate(delta.WaitType, 38),-38} {delta.WaitTimeMs,12:N0} {delta.WaitingTasks,10:N0} " +
                     $"{delta.AverageWaitMs,9:F1}  {delta.PercentOfTotal,6:P1}");
+
+                // A bare list of wait types only helps a reader who already knows them.
+                if (WaitTypeGlossary.Describe(delta.WaitType) is { } explanation)
+                    Console.WriteLine($"    {explanation}");
             }
         }
         catch (Exception exception)

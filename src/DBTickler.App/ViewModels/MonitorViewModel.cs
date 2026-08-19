@@ -72,6 +72,8 @@ public sealed class WaitRowViewModel
         Waits = delta.WaitingTasks;
         AverageMs = delta.AverageWaitMs;
         Share = delta.PercentOfTotal;
+        Explanation = WaitTypeGlossary.DescribeOrDefault(delta.WaitType);
+        IndicatesBlocking = WaitTypeGlossary.IndicatesBlocking(delta.WaitType);
     }
 
     public string WaitType { get; }
@@ -80,6 +82,11 @@ public sealed class WaitRowViewModel
     public long Waits { get; }
     public double AverageMs { get; }
     public double Share { get; }
+
+    /// <summary>What this wait type means, so the table teaches rather than just reports.</summary>
+    public string Explanation { get; }
+
+    public bool IndicatesBlocking { get; }
 }
 
 /// <summary>

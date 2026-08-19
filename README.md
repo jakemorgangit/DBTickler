@@ -50,6 +50,9 @@ promised is actually in the box.
 - **Deadlocks explained in plain English.** Captured graphs are parsed and narrated —
   which session wanted which lock, who held it, and who was rolled back — instead of
   leaving you to read the XML.
+- **Waits explained too.** Each wait type is annotated with what the server was waiting for
+  and what usually causes it, because a bare list of wait types only helps someone who
+  already knows them.
 - **Reproducible runs.** Fix the random seed and the same operations run in the same order.
 - **Ramp-up.** Virtual users start staggered, so the first seconds measure the server
   rather than connection-pool warm-up.

@@ -600,13 +600,39 @@
                                 <ListView Grid.Row="1" ItemsSource="{Binding Monitor.Waits}">
                                     <ListView.View>
                                         <GridView>
-                                            <GridViewColumn Header="Wait type" Width="300" DisplayMemberBinding="{Binding WaitType}" />
-                                            <GridViewColumn Header="Total ms" Width="120" DisplayMemberBinding="{Binding TotalMs, StringFormat=N0}" />
-                                            <GridViewColumn Header="Resource ms" Width="120" DisplayMemberBinding="{Binding ResourceMs, StringFormat=N0}" />
-                                            <GridViewColumn Header="Waits" Width="110" DisplayMemberBinding="{Binding Waits, StringFormat=N0}" />
-                                            <GridViewColumn Header="Avg ms" Width="100" DisplayMemberBinding="{Binding AverageMs, StringFormat=F2}" />
-                                            <GridViewColumn Header="Share" Width="90"
+                                            <GridViewColumn Header="Wait type" Width="240">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding WaitType}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IndicatesBlocking}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Total ms" Width="100" DisplayMemberBinding="{Binding TotalMs, StringFormat=N0}" />
+                                            <GridViewColumn Header="Resource ms" Width="100" DisplayMemberBinding="{Binding ResourceMs, StringFormat=N0}" />
+                                            <GridViewColumn Header="Waits" Width="90" DisplayMemberBinding="{Binding Waits, StringFormat=N0}" />
+                                            <GridViewColumn Header="Avg ms" Width="80" DisplayMemberBinding="{Binding AverageMs, StringFormat=F2}" />
+                                            <GridViewColumn Header="Share" Width="70"
                                                             DisplayMemberBinding="{Binding Share, Converter={StaticResource Share}}" />
+                                            <GridViewColumn Header="What this means" Width="620">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" MaxWidth="600"
+                                                                   Foreground="{DynamicResource MutedForegroundBrush}" />
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
                                         </GridView>
                                     </ListView.View>
                                 </ListView>
