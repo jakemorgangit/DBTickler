@@ -19,7 +19,6 @@ public sealed class LoadEngine
     private readonly ISqlSessionFactory _sessionFactory;
     private readonly IRunLog _log;
 
-    private CancellationTokenSource? _cancellation;
     private RunCoordinator? _coordinator;
     private RunState _state = RunState.Idle;
 
@@ -81,7 +80,6 @@ public sealed class LoadEngine
         Metrics = new MetricsCollector(profile.DurationSeconds);
 
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _cancellation = cancellation;
         var coordinator = new RunCoordinator(cancellation, _log, profile.MaxErrors);
         _coordinator = coordinator;
 
@@ -136,7 +134,6 @@ public sealed class LoadEngine
         finally
         {
             Metrics.Stop();
-            _cancellation = null;
             _coordinator = null;
         }
 
