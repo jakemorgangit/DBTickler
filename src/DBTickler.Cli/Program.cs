@@ -148,6 +148,15 @@ namespace DBTickler.Cli
                   --max-error-rate <pct>   Exit non-zero if the error rate exceeds this
                   --max-p95 <ms>           Exit non-zero if p95 latency exceeds this
 
+                OTHER COMMANDS
+                  setup     --rows <n>         Rows to fill dbo.LoadGen with (default: 20000)
+                  teardown  --yes              Required; dropping the table discards its rows
+                  sessions  --watch            Refresh continuously instead of printing once
+                            --interval <secs>  Refresh interval when watching (default: 2)
+                  deadlocks --limit <n>        Most recent graphs to print (default: 10)
+                            --mine             Only deadlocks DBTickler took part in
+                            --xml              Print the raw graph, for opening in SSMS
+
                 EXAMPLES
                   dbtickler probe --server localhost --database AdventureWorks2022
                   dbtickler run --profile oltp --unsafe --users 32 --duration 120 --json run.json
