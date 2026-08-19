@@ -68,6 +68,9 @@ DBTickler only ever modifies its own table, `dbo.LoadGen`. Your tables are read 
 never written to. Safe mode is enforced inside the engine rather than by the UI, so a
 loaded configuration file cannot smuggle writes past it.
 
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md) lists every statement the tool can issue, and
+`dbtickler probe` prints the exact set it would run against a given target.
+
 ---
 
 ## Who is this for?
