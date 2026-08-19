@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using DBTickler.Core.Data;
 
 namespace DBTickler.Core.Safety;
@@ -30,10 +29,77 @@ public sealed record RiskAssessment(RiskLevel Level, IReadOnlyList<string> Signa
 /// operator had to remember to tick. The guard cannot know for certain what is production,
 /// so it gathers evidence and asks rather than refusing.
 /// </summary>
-public static partial class ProductionGuard
+public static class ProductionGuard
 {
-    [GeneratedRegex(@"\b(prod|production|live|prd)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex ProductionNamePattern();
+    private static readonly string[] ProductionKeywords = ["production", "prod", "prd", "live"];
+
+    /// <summary>
+    /// True when a server or database name contains a production keyword as a recognisable
+    /// part of the name.
+    ///
+    /// This deliberately does not use a <c>\b</c> word boundary. In .NET, digits and
+    /// underscore are word characters, so <c>\bprod\b</c> fails to fire on <c>Sales_Prod</c>,
+    /// <c>DB_PROD_01</c> and <c>PROD01</c> — some of the most common production naming
+    /// conventions there are, and precisely the names this guard exists to catch. Instead the
+    /// boundary is worked out from the characters either side, treating a change of case as a
+    /// boundary too so that <c>LiveDB</c> and <c>SQLPROD2</c> are caught while
+    /// <c>productdb</c>, <c>reproduction</c> and <c>delivery</c> are not.
+    ///
+    /// Where the two goals conflict, this errs towards matching: a false positive costs one
+    /// confirmation click, and a false negative means running a destructive workload against
+    /// production.
+    /// </summary>
+    internal static bool LooksLikeProduction(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+
+        foreach (var keyword in ProductionKeywords)
+        {
+            var index = 0;
+            while ((index = name.IndexOf(keyword, index, StringComparison.OrdinalIgnoreCase)) >= 0)
+            {
+                if (HasBoundariesAround(name, index, keyword))
+                    return true;
+
+                index++;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasBoundariesAround(string name, int index, string keyword)
+    {
+        var matched = name.AsSpan(index, keyword.Length);
+        var matchIsUpper = !ContainsLower(matched);
+
+        var before = index == 0 ? '\0' : name[index - 1];
+        var afterIndex = index + keyword.Length;
+        var after = afterIndex >= name.Length ? '\0' : name[afterIndex];
+
+        // Left: a separator, a digit or the start of the name is a clean boundary. A letter is
+        // only accepted when both it and the match are upper case, which is what makes
+        // SQLPROD2 count while reproduction does not.
+        var leftIsBoundary = !char.IsLetter(before) || (char.IsUpper(before) && matchIsUpper);
+
+        // Right: a separator, a digit or the end of the name. An upper-case letter counts too,
+        // since that is a word boundary in PascalCase — LiveDB, ProdServer. The full word
+        // "production" needs no right boundary at all.
+        var rightIsBoundary = !char.IsLetter(after)
+                              || char.IsUpper(after)
+                              || keyword.Equals("production", StringComparison.OrdinalIgnoreCase);
+
+        return leftIsBoundary && rightIsBoundary;
+    }
+
+    private static bool ContainsLower(ReadOnlySpan<char> text)
+    {
+        foreach (var character in text)
+        {
+            if (char.IsLower(character)) return true;
+        }
+        return false;
+    }
 
     public const string SignalsSql = """
         SET NOCOUNT ON;
@@ -64,10 +130,10 @@ public static partial class ProductionGuard
     {
         var signals = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(database) && ProductionNamePattern().IsMatch(database))
+        if (!string.IsNullOrWhiteSpace(database) && LooksLikeProduction(database))
             signals.Add($"The database name '{database}' looks like a production database.");
 
-        if (!string.IsNullOrWhiteSpace(server) && ProductionNamePattern().IsMatch(server))
+        if (!string.IsNullOrWhiteSpace(server) && LooksLikeProduction(server))
             signals.Add($"The server name '{server}' looks like a production server.");
 
         return signals.Count == 0

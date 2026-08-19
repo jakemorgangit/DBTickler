@@ -49,6 +49,20 @@ public static class BlockingAnalyzer
             roots.Add(BuildNode(head, blockedBy, []));
         }
 
+        // In a pure cycle — every participant blocked by another in the same ring, which
+        // SQL Server's deadlock resolver is about to break — no session qualifies as a head,
+        // so the whole thing would otherwise vanish from the display at exactly the moment it
+        // is most interesting. Root it at the longest waiter instead.
+        if (roots.Count == 0)
+        {
+            var entryPoint = blockedBy.Keys
+                .Select(sessionId => bySession.TryGetValue(sessionId, out var request) ? request : Placeholder(sessionId))
+                .OrderByDescending(request => request.WaitTimeMs)
+                .First();
+
+            roots.Add(BuildNode(entryPoint, blockedBy, []));
+        }
+
         return roots
             .OrderByDescending(node => node.TotalBlockedBelow)
             .ThenByDescending(node => node.MaxWaitMsBelow)
@@ -60,20 +74,24 @@ public static class BlockingAnalyzer
         Dictionary<int, List<ActiveRequest>> blockedBy,
         HashSet<int> visited)
     {
-        // Blocking graphs are normally trees, but a deadlock in the instant before the
-        // resolver fires produces a cycle. Tracking visited sessions keeps that from
-        // recursing forever.
-        if (!visited.Add(request.SessionId))
-            return new BlockingNode(request, []);
+        // A session records exactly one blocker, so the graph is a forest — except in the
+        // instant before SQL Server's deadlock resolver fires, when it can contain a cycle.
+        // Tracking visited sessions stops the walk going round the ring forever, and stopping
+        // at the closing edge rather than repeating the session keeps each one counted once.
+        visited.Add(request.SessionId);
 
         if (!blockedBy.TryGetValue(request.SessionId, out var children))
             return new BlockingNode(request, []);
 
         var nodes = new List<BlockingNode>(children.Count);
         foreach (var child in children.OrderByDescending(c => c.WaitTimeMs))
-            nodes.Add(BuildNode(child, blockedBy, visited));
+        {
+            if (visited.Contains(child.SessionId))
+                continue;
 
-        visited.Remove(request.SessionId);
+            nodes.Add(BuildNode(child, blockedBy, visited));
+        }
+
         return new BlockingNode(request, nodes);
     }
 
