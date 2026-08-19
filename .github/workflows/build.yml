@@ -41,6 +41,11 @@ jobs:
     needs: test
     runs-on: windows-latest
 
+    # Needed to attach executables to a release. Repositories that default the workflow
+    # token to read-only would otherwise fail only on tag builds, long after the change.
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 

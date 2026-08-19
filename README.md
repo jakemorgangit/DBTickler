@@ -4,6 +4,10 @@
 
 ![DBTickler Demo](https://github.com/jakemorgangit/DBTickler/blob/main/DBTickler.gif)
 
+<sub>The recording above shows v1. The v2 window keeps the same layout and palette but adds
+live throughput and latency charts, and tabs for sessions and blocking, wait statistics and
+captured deadlocks.</sub>
+
 DBTickler creates realistic activity inside a SQL Server database so you can watch
 sessions, waits, locking, blocking and deadlocks happen in real time — and then shows
 you what happened. It is built for DBAs, developers, students and performance engineers

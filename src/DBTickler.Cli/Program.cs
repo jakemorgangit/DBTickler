@@ -237,10 +237,27 @@ namespace DBTickler.Cli
             if (commandLine.String("mix") is { } mix)
                 ApplyMix(workload, mix);
 
-            // Writing is opt-in on the command line even when the preset writes, so a
-            // copy-pasted command cannot start modifying data by accident.
-            if (commandLine.Flag("safe")) workload.SafeMode = true;
-            if (commandLine.Flag("unsafe")) workload.SafeMode = false;
+            // Writing is opt-in on the command line even when the chosen preset writes, so
+            // a command copied from a README or a chat message cannot start modifying data
+            // just because of the preset it names.
+            var wantsSafe = commandLine.Flag("safe");
+            var wantsUnsafe = commandLine.Flag("unsafe");
+
+            if (wantsSafe)
+            {
+                workload.SafeMode = true;
+            }
+            else if (wantsUnsafe)
+            {
+                workload.SafeMode = false;
+            }
+            else if (!workload.SafeMode)
+            {
+                workload.SafeMode = true;
+                Console.Error.WriteLine(
+                    $"The '{presetName}' profile includes writes, but --unsafe was not given, " +
+                    "so this run is read-only. Add --unsafe to allow writes.");
+            }
 
             if (commandLine.Flag("chaos")) workload.ChaosMode = true;
             workload.ChaosIntensityPercent = commandLine.Int("chaos-intensity", workload.ChaosIntensityPercent);
