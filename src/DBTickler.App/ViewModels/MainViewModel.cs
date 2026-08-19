@@ -78,6 +78,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         LoadSessionFileCommand = new RelayCommand(LoadSessionFile);
         ClearLogCommand = new RelayCommand(() => Log.Clear());
         ApplyPresetCommand = new RelayCommand(() => Workload.ApplyPreset(SelectedPreset));
+        LaunchAnotherInstanceCommand = new RelayCommand(LaunchAnotherInstance);
 
         _metricsTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(250) };
         _metricsTimer.Tick += (_, _) => RefreshMetrics();
@@ -111,6 +112,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand LoadSessionFileCommand { get; }
     public RelayCommand ClearLogCommand { get; }
     public RelayCommand ApplyPresetCommand { get; }
+    public RelayCommand LaunchAnotherInstanceCommand { get; }
 
     public string Server
     {
@@ -747,6 +749,32 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         catch (Exception exception)
         {
             _interaction.ShowError("Delete failed", exception.Message);
+        }
+    }
+
+    /// <summary>
+    /// Starts a second copy of the application, for driving several databases or servers at
+    /// once. Each instance keeps its own configuration and metrics.
+    /// </summary>
+    private void LaunchAnotherInstance()
+    {
+        try
+        {
+            var executable = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(executable))
+            {
+                _interaction.ShowError("New window", "Could not determine the path to the running executable.");
+                return;
+            }
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception exception)
+        {
+            _interaction.ShowError("New window", exception.Message);
         }
     }
 

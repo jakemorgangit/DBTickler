@@ -200,6 +200,12 @@ app and click at the right moment, coordinating through lock files in the temp d
 
 ---
 
+## Multiple instances
+
+**New window** in the header opens a second copy of the app, each with its own
+configuration and metrics — useful for driving several databases or servers at once, or
+for putting two different workloads on the same database and watching them contend.
+
 ## Sessions
 
 Save named configurations from the header bar. They live in

@@ -116,7 +116,13 @@ public sealed class MetricsCollector
         foreach (var kind in OperationKindExtensions.All)
         {
             var index = (int)kind;
-            var histogram = _latencyByKind[index].Snapshot();
+
+            // Read the live histograms rather than copying each one first. A snapshot is
+            // taken several times a second while the UI is open, and each copy is a
+            // couple of hundred kilobytes; percentiles read from a histogram that is still
+            // being written to can only be very slightly stale, which is the same
+            // guarantee the counters around them already give.
+            var histogram = _latencyByKind[index];
             merged.Add(histogram);
 
             var operations = Interlocked.Read(ref _opsByKind[index]);

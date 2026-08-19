@@ -56,7 +56,10 @@
                 <Button Content="Delete" Command="{Binding DeleteSessionCommand}" Margin="6,0,0,0"
                         Style="{StaticResource IconButton}" ToolTip="Delete the selected saved session" />
                 <Border Width="1" Background="{DynamicResource OutlineBrush}" Margin="10,2" />
-                <Button Content="{Binding ThemeButtonText}" Click="OnToggleTheme"
+                <Button Content="New window" Command="{Binding LaunchAnotherInstanceCommand}"
+                        Style="{StaticResource IconButton}"
+                        ToolTip="Open a second copy of DBTickler, for driving another database or server at the same time" />
+                <Button Content="{Binding ThemeButtonText}" Click="OnToggleTheme" Margin="6,0,0,0"
                         Style="{StaticResource IconButton}" ToolTip="Switch between dark and light" />
                 <Button Content="About" Click="OnShowAbout" Margin="6,0,0,0"
                         Style="{StaticResource IconButton}" />

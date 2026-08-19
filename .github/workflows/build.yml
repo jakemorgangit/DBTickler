@@ -54,6 +54,7 @@ jobs:
           --configuration Release
           --runtime win-x64
           --self-contained true
+          -p:PublishSingleFile=true
           --output publish/app
 
       - name: Publish command-line tool

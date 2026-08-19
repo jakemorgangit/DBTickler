@@ -16,10 +16,13 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  <PropertyGroup>
+    <!--
+      Single-file packaging settings live here, but the runtime identifier does not: pinning
+      a RID in the project would make an ordinary `dotnet build -c Release` on a Linux CI
+      agent try to produce a self-contained Windows build. The RID is passed on the publish
+      command instead.
+    -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>

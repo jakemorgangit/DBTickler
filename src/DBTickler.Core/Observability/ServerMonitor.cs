@@ -50,8 +50,15 @@ public sealed class ServerMonitor
         FROM sys.dm_exec_sessions s
         LEFT JOIN sys.dm_exec_requests r ON r.session_id = s.session_id
         -- An idle head blocker has no request, so its statement text has to come from the
-        -- connection's most recent handle instead.
-        LEFT JOIN sys.dm_exec_connections c ON c.session_id = s.session_id
+        -- connection's most recent handle instead. Taken with TOP (1) rather than a join,
+        -- because a session using MARS has several connections and would otherwise appear
+        -- once per connection.
+        OUTER APPLY
+        (
+            SELECT TOP (1) c.most_recent_sql_handle
+            FROM sys.dm_exec_connections c
+            WHERE c.session_id = s.session_id
+        ) c
         OUTER APPLY sys.dm_exec_sql_text(COALESCE(r.sql_handle, c.most_recent_sql_handle)) t
         WHERE s.is_user_process = 1
           AND s.session_id <> @@SPID
@@ -116,7 +123,9 @@ public sealed class ServerMonitor
           AND session_id <> @@SPID
           AND is_user_process = 1;
 
-        IF LEN(@sql) > 0 EXEC sp_executesql @sql;
+        -- EXEC rather than sp_executesql: KILL is documented as runnable from an EXEC batch,
+        -- and there is nothing to parameterise here since the ids are already validated.
+        IF LEN(@sql) > 0 EXEC (@sql);
 
         SELECT @killed;
         """;
