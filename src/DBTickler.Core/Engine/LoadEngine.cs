@@ -38,10 +38,41 @@ public sealed class LoadEngine
         {
             if (_state == value) return;
             _state = value;
-            StateChanged?.Invoke(value);
+            RaiseStateChanged(value);
         }
     }
 
+    /// <summary>
+    /// Notifies subscribers one at a time, containing any that throw.
+    ///
+    /// A run can be hours long and is often unattended; a buggy listener must not be able to
+    /// end it, nor to stop the other listeners hearing about the transition. This is not
+    /// hypothetical — a UI subscriber touching thread-affine state from the engine's thread
+    /// throws every time, and because some transitions are raised from a fire-and-forget task
+    /// the exception went unobserved and was reported as a crash.
+    /// </summary>
+    private void RaiseStateChanged(RunState state)
+    {
+        if (StateChanged is not { } handler) return;
+
+        foreach (var subscriber in handler.GetInvocationList())
+        {
+            try
+            {
+                ((Action<RunState>)subscriber)(state);
+            }
+            catch (Exception exception)
+            {
+                _log.Error($"A run-state subscriber threw handling '{state}': {exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Raised on whichever thread advanced the run — a thread-pool thread once the engine's
+    /// awaits stop capturing the caller's context. A UI consumer must marshal to its own
+    /// thread before touching anything thread-affine.
+    /// </summary>
     public event Action<RunState>? StateChanged;
 
     public bool IsRunning => State is RunState.Preparing or RunState.RampingUp or RunState.Running or RunState.Stopping;
@@ -169,6 +200,13 @@ public sealed class LoadEngine
         catch (OperationCanceledException)
         {
             // Run ended during ramp-up; the final state is set by RunAsync.
+        }
+        catch (Exception exception)
+        {
+            // Nothing awaits this task, so anything escaping here would surface much later as
+            // an unobserved exception on the finaliser thread — far from its cause, and fatal
+            // to a host that treats those as crashes.
+            _log.Error($"Ramp-up transition failed: {exception.Message}");
         }
     }
 

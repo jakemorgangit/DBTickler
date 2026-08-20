@@ -28,6 +28,88 @@ public class LoadEngineTests
     }
 
     [Fact]
+    public async Task A_state_subscriber_that_throws_during_ramp_up_does_not_sink_the_run()
+    {
+        // Regression: the ramp-up transition is raised from a fire-and-forget task, so an
+        // exception from a subscriber was never observed by anything. It surfaced later on the
+        // finaliser thread as an unobserved TaskException, which the desktop app reported as a
+        // crash — repeatedly, since every run did it. A subscriber that throws is the
+        // subscriber's problem and must not touch the run.
+        // A small per-call delay keeps the fake honest: a real round trip is never synchronous.
+        var factory = new FakeSqlSessionFactory { Delay = TimeSpan.FromMilliseconds(5) };
+        var profile = ReadOnlyProfile(virtualUsers: 2, durationSeconds: 3, rampUpSeconds: 1);
+        var plan = WorkloadPlan.Build(profile, TestSchemas.LoadGenOnly());
+        var engine = new LoadEngine(factory);
+
+        var observed = new List<RunState>();
+        engine.StateChanged += state =>
+        {
+            lock (observed) observed.Add(state);
+            throw new InvalidOperationException("subscriber blew up, exactly as WPF would off-thread");
+        };
+
+        var unobserved = new List<Exception>();
+        void Capture(object? _, UnobservedTaskExceptionEventArgs args)
+        {
+            lock (unobserved) unobserved.Add(args.Exception);
+            args.SetObserved();
+        }
+
+        TaskScheduler.UnobservedTaskException += Capture;
+        try
+        {
+            var report = await engine.RunAsync(plan).WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.NotNull(report);
+
+            // Force the finaliser to run, which is when an unobserved exception would be raised.
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= Capture;
+        }
+
+        // Every transition is still delivered: one throwing subscriber neither ends the run
+        // nor suppresses the notifications that follow it.
+        lock (observed)
+        {
+            Assert.Contains(RunState.Preparing, observed);
+            Assert.Contains(RunState.RampingUp, observed);
+            Assert.Contains(RunState.Running, observed);
+        }
+
+        lock (unobserved)
+            Assert.True(unobserved.Count == 0,
+                "The run left an unobserved task exception behind: " +
+                string.Join("; ", unobserved.Select(e => e.Message)));
+    }
+
+    [Fact]
+    public async Task Ramp_up_reports_Running_once_the_ramp_window_has_passed()
+    {
+        var factory = new FakeSqlSessionFactory { Delay = TimeSpan.FromMilliseconds(5) };
+        var profile = ReadOnlyProfile(virtualUsers: 3, durationSeconds: 4, rampUpSeconds: 1);
+        var plan = WorkloadPlan.Build(profile, TestSchemas.LoadGenOnly());
+        var engine = new LoadEngine(factory);
+
+        var observed = new List<RunState>();
+        engine.StateChanged += state => { lock (observed) observed.Add(state); };
+
+        await engine.RunAsync(plan).WaitAsync(TimeSpan.FromSeconds(30));
+
+        lock (observed)
+        {
+            Assert.Contains(RunState.RampingUp, observed);
+            Assert.Contains(RunState.Running, observed);
+            Assert.True(
+                observed.IndexOf(RunState.RampingUp) < observed.IndexOf(RunState.Running),
+                $"States arrived out of order: {string.Join(" → ", observed)}");
+        }
+    }
+
+    [Fact]
     public async Task Concurrency_never_exceeds_the_configured_virtual_user_count()
     {
         var factory = new FakeSqlSessionFactory { Delay = TimeSpan.FromMilliseconds(150) };

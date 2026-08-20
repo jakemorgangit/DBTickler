@@ -6,6 +6,7 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize" ShowInTaskbar="False"
         Background="{DynamicResource ChromeBackground}"
+        Foreground="{DynamicResource ForegroundBrush}"
         FontFamily="Segoe UI">
 
     <StackPanel Margin="18">

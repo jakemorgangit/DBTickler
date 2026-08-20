@@ -1,38 +1,68 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Palette carried over from DBTickler v1 so the app stays recognisable. -->
+    <!--
+        Light palette. Key-for-key identical to Dark.xaml — see the note there.
+    -->
 
-    <SolidColorBrush x:Key="ChromeBackground"        Color="#F3F3F3" />
-    <SolidColorBrush x:Key="SurfaceBackground"       Color="#FFFFFF" />
-    <SolidColorBrush x:Key="ControlBackground"       Color="#F5F5F5" />
-    <SolidColorBrush x:Key="ControlHoverBackground"  Color="#E8E8E8" />
+    <!-- Surfaces, from furthest back to nearest front -->
+    <SolidColorBrush x:Key="ChromeBackground"          Color="#F4F4F7" />
+    <SolidColorBrush x:Key="SurfaceBackground"         Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SurfaceRaisedBackground"   Color="#FAFAFC" />
+    <SolidColorBrush x:Key="ControlBackground"         Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ControlHoverBackground"    Color="#F0F0F4" />
+    <SolidColorBrush x:Key="ControlPressedBackground"  Color="#E5E5EB" />
+    <SolidColorBrush x:Key="ControlDisabledBackground" Color="#F2F2F5" />
 
-    <SolidColorBrush x:Key="OutlineBrush"            Color="#CCCCCC" />
-    <SolidColorBrush x:Key="OutlineStrongBrush"      Color="#B0B0B0" />
+    <!-- Lines -->
+    <SolidColorBrush x:Key="OutlineBrush"              Color="#E3E3E9" />
+    <SolidColorBrush x:Key="OutlineStrongBrush"        Color="#C8C8D2" />
 
-    <SolidColorBrush x:Key="ForegroundBrush"         Color="#1E1E1E" />
-    <SolidColorBrush x:Key="MutedForegroundBrush"    Color="#616161" />
+    <!-- Text -->
+    <SolidColorBrush x:Key="ForegroundBrush"           Color="#17171C" />
+    <SolidColorBrush x:Key="MutedForegroundBrush"      Color="#5C5C68" />
+    <SolidColorBrush x:Key="SubtleForegroundBrush"     Color="#8A8A96" />
+    <SolidColorBrush x:Key="DisabledForegroundBrush"   Color="#AFAFB9" />
 
-    <SolidColorBrush x:Key="AccentBrush"             Color="#0078D4" />
-    <SolidColorBrush x:Key="AccentHoverBrush"        Color="#1C97EA" />
-    <SolidColorBrush x:Key="AccentPressedBrush"      Color="#005A9E" />
-    <SolidColorBrush x:Key="AccentForegroundBrush"   Color="#FFFFFF" />
+    <!-- Accent -->
+    <SolidColorBrush x:Key="AccentBrush"               Color="#6D3FD1" />
+    <SolidColorBrush x:Key="AccentHoverBrush"          Color="#7E55DA" />
+    <SolidColorBrush x:Key="AccentPressedBrush"        Color="#5A31B0" />
+    <SolidColorBrush x:Key="AccentSubtleBrush"         Color="#EFE9FB" />
+    <SolidColorBrush x:Key="AccentForegroundBrush"     Color="#FFFFFF" />
 
-    <SolidColorBrush x:Key="SuccessBrush"            Color="#107C10" />
-    <SolidColorBrush x:Key="SuccessHoverBrush"       Color="#0B5A0B" />
-    <SolidColorBrush x:Key="DangerBrush"             Color="#D13438" />
-    <SolidColorBrush x:Key="DangerHoverBrush"        Color="#A72D30" />
-    <SolidColorBrush x:Key="WarningBrush"            Color="#9D5D00" />
+    <!-- Semantic -->
+    <SolidColorBrush x:Key="SuccessBrush"              Color="#147D45" />
+    <SolidColorBrush x:Key="WarningBrush"              Color="#9A6700" />
+    <SolidColorBrush x:Key="DangerBrush"               Color="#C62828" />
+    <SolidColorBrush x:Key="DangerHoverBrush"          Color="#D64545" />
+    <SolidColorBrush x:Key="DangerPressedBrush"        Color="#A81E1E" />
 
-    <SolidColorBrush x:Key="ConsoleBackground"       Color="#FBFBFB" />
-    <SolidColorBrush x:Key="ConsoleForeground"       Color="#1E1E1E" />
+    <!-- Selection, shared by lists, grids and text fields -->
+    <SolidColorBrush x:Key="SelectionBackgroundBrush"  Color="#E4DAF9" />
+    <SolidColorBrush x:Key="SelectionForegroundBrush"  Color="#17171C" />
+    <SolidColorBrush x:Key="RowHoverBackground"        Color="#F3F1FA" />
 
-    <SolidColorBrush x:Key="ChartLineBrush"          Color="#0078D4" />
-    <SolidColorBrush x:Key="ChartFillBrush"          Color="#330078D4" />
-    <SolidColorBrush x:Key="ChartGridBrush"          Color="#DDDDDD" />
-    <SolidColorBrush x:Key="ChartMarkerBrush"        Color="#D13438" />
-    <SolidColorBrush x:Key="ChartLatencyBrush"       Color="#8764B8" />
-    <SolidColorBrush x:Key="ChartLatencyFillBrush"   Color="#338764B8" />
+    <!-- Log pane -->
+    <SolidColorBrush x:Key="ConsoleBackground"         Color="#FBFBFD" />
+    <SolidColorBrush x:Key="ConsoleForeground"         Color="#24242B" />
+
+    <!-- Scroll bars -->
+    <SolidColorBrush x:Key="ScrollBarTrackBrush"       Color="#00000000" />
+    <SolidColorBrush x:Key="ScrollBarThumbBrush"       Color="#C8C8D2" />
+    <SolidColorBrush x:Key="ScrollBarThumbHoverBrush"  Color="#ADADB8" />
+
+    <!-- Sliders -->
+    <SolidColorBrush x:Key="SliderTrackBrush"          Color="#E3E3E9" />
+    <SolidColorBrush x:Key="SliderThumbBrush"          Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SliderThumbBorderBrush"    Color="#C8C8D2" />
+
+    <!-- Charts -->
+    <SolidColorBrush x:Key="ChartLineBrush"            Color="#6D3FD1" />
+    <SolidColorBrush x:Key="ChartFillBrush"            Color="#306D3FD1" />
+    <SolidColorBrush x:Key="ChartGridBrush"            Color="#E3E3E9" />
+    <SolidColorBrush x:Key="ChartMarkerBrush"          Color="#C62828" />
+    <SolidColorBrush x:Key="ChartLatencyBrush"         Color="#0F6CBD" />
+    <SolidColorBrush x:Key="ChartLatencyFillBrush"     Color="#300F6CBD" />
 
 </ResourceDictionary>

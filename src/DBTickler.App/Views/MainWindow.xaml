@@ -9,7 +9,12 @@
         MinHeight="640" MinWidth="1120"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource ChromeBackground}"
-        FontFamily="Segoe UI">
+        Foreground="{DynamicResource ForegroundBrush}"
+        FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -19,7 +24,7 @@
         <converters:ShareConverter x:Key="Share" />
     </Window.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -35,7 +40,7 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="DBTickler" FontSize="20" FontWeight="Bold"
+                <TextBlock Text="DBTickler" FontSize="21" FontWeight="Bold"
                            Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
                 <TextBlock Text="v2" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Bottom"
                            Foreground="{DynamicResource MutedForegroundBrush}" />
@@ -75,10 +80,11 @@
             </Grid.ColumnDefinitions>
 
             <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
-                          Background="Transparent" ResizeBehavior="PreviousAndNext" />
+                          Background="Transparent" ResizeBehavior="PreviousAndNext"
+                          Cursor="SizeWE" ShowsPreview="False" />
 
             <!-- ─── Configuration ─── -->
-            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
                 <StackPanel>
 
                     <!-- Connection -->
@@ -202,7 +208,7 @@
                                            Text="{Binding Workload.ThinkTimeMs, StringFormat={}{0} ms}" />
                             </Grid>
 
-                            <CheckBox Content="Vary think time (Poisson arrivals)" IsChecked="{Binding Workload.ThinkTimeJitter}"
+                            <CheckBox Content="Vary think time" IsChecked="{Binding Workload.ThinkTimeJitter}"
                                       ToolTip="Draws each pause from an exponential distribution. Fixed pauses make every user tick in lockstep and hide queueing." />
 
                             <TextBlock Text="{Binding Workload.DurationHint}" Style="{StaticResource HintText}" />
@@ -214,7 +220,7 @@
                         <StackPanel>
                             <TextBlock Text="DML MIX" Style="{StaticResource SectionHeading}" />
 
-                            <CheckBox Content="Safe mode — reads only" IsChecked="{Binding Workload.SafeMode}"
+                            <CheckBox Content="Safe mode (reads only)" IsChecked="{Binding Workload.SafeMode}"
                                       FontWeight="SemiBold"
                                       ToolTip="Enforced inside the engine, not just in this window: with safe mode on, no write statement can be generated at all." />
 
@@ -283,12 +289,12 @@
 
                             <StackPanel Margin="0,6,0,0"
                                         Visibility="{Binding Workload.ChaosMode, Converter={StaticResource BoolToVisibility}}">
-                                <CheckBox Content="Bad queries — cartesian joins, non-SARGable predicates"
-                                          IsChecked="{Binding Workload.ChaosBadQueries}" />
-                                <CheckBox Content="Concurrency — blocking chains, deadlocks, lock escalation"
-                                          IsChecked="{Binding Workload.ChaosConcurrency}" />
-                                <CheckBox Content="Resource burners — CPU, memory grants, tempdb"
-                                          IsChecked="{Binding Workload.ChaosResourceBurners}" />
+                                <CheckBox Content="Bad queries" IsChecked="{Binding Workload.ChaosBadQueries}"
+                                          ToolTip="Cartesian joins, predicates wrapped in functions, and implicit conversions — plans with nowhere to hide." />
+                                <CheckBox Content="Concurrency attacks" IsChecked="{Binding Workload.ChaosConcurrency}"
+                                          ToolTip="Blocking chains, deadlock traps, lock escalation past the 5,000-lock threshold, and cursor loops." />
+                                <CheckBox Content="Resource burners" IsChecked="{Binding Workload.ChaosResourceBurners}"
+                                          ToolTip="Cryptographic hashing for CPU, large sorts that request big memory grants, and tempdb pressure." />
 
                                 <Grid Margin="0,8,0,0">
                                     <Grid.ColumnDefinitions>
@@ -469,7 +475,7 @@
                 </Border>
 
                 <!-- Charts -->
-                <Border Grid.Row="2" Style="{StaticResource CardBorder}" Height="200">
+                <Border Grid.Row="2" Style="{StaticResource CardBorder}" Height="210">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -708,6 +714,8 @@
                                 </StackPanel>
 
                                 <ListBox Grid.Row="1" x:Name="LogList" ItemsSource="{Binding Log.Lines}"
+                                         Background="{DynamicResource ConsoleBackground}"
+                                         Foreground="{DynamicResource ConsoleForeground}"
                                          VirtualizingPanel.IsVirtualizing="True"
                                          VirtualizingPanel.VirtualizationMode="Recycling"
                                          ScrollViewer.HorizontalScrollBarVisibility="Auto">

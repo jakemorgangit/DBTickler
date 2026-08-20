@@ -22,24 +22,39 @@ public partial class App : Application
         base.OnStartup(e);
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-            Record("Unhandled exception", args.ExceptionObject as Exception, fatal: true);
+            Record("Unhandled exception", args.ExceptionObject as Exception, Severity.Fatal);
 
         DispatcherUnhandledException += (_, args) =>
         {
-            Record("UI thread exception", args.Exception, fatal: false);
+            Record("UI thread exception", args.Exception, Severity.Recoverable);
             args.Handled = true;
         };
 
-        // A faulted background task must not take the process down; the load engine already
-        // handles its own failures, so anything arriving here is worth logging but survivable.
+        // Written to the log but never surfaced as a dialog. An unobserved task exception is
+        // reported by the finaliser long after the work was abandoned, so there is nothing the
+        // operator can do about it and no way to tell how many are the same fault repeating —
+        // interrupting a running workload with a modal box per occurrence is worse than the
+        // fault itself.
         System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, args) =>
         {
-            Record("Background task exception", args.Exception, fatal: false);
+            Record("Background task exception", args.Exception, Severity.Silent);
             args.SetObserved();
         };
     }
 
-    private static void Record(string context, Exception? exception, bool fatal)
+    private enum Severity
+    {
+        /// <summary>Logged only; the operator is not interrupted.</summary>
+        Silent,
+
+        /// <summary>Logged and reported, but the application keeps running.</summary>
+        Recoverable,
+
+        /// <summary>Logged and reported; the process is going down.</summary>
+        Fatal,
+    }
+
+    private static void Record(string context, Exception? exception, Severity severity)
     {
         var message = exception?.ToString() ?? "(no exception details)";
 
@@ -55,11 +70,13 @@ public partial class App : Application
             // Nothing useful to do if even the crash log cannot be written.
         }
 
+        if (severity == Severity.Silent) return;
+
         MessageBox.Show(
             $"{exception?.Message ?? context}\n\nDetails were written to:\n{CrashLogPath}",
-            fatal ? "DBTickler — fatal error" : "DBTickler — error",
+            severity == Severity.Fatal ? "DBTickler — fatal error" : "DBTickler — error",
             MessageBoxButton.OK,
-            fatal ? MessageBoxImage.Error : MessageBoxImage.Warning);
+            severity == Severity.Fatal ? MessageBoxImage.Error : MessageBoxImage.Warning);
     }
 
     /// <summary>Swaps the palette dictionary, leaving the control styles in place.</summary>

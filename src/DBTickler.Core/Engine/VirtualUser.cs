@@ -94,8 +94,18 @@ internal sealed class VirtualUser
 
     private async Task LoopAsync(CancellationToken cancellationToken)
     {
+        var iterations = 0;
+
         while (!cancellationToken.IsCancellationRequested)
         {
+            // Return to the scheduler periodically. Awaiting a task that is already complete
+            // continues inline, so if operations finish synchronously — a server refusing
+            // connections outright, for instance — this loop never yields. That pins a core
+            // per virtual user and starves the timers that end the run and report ramp-up,
+            // which is how a failing target could look like a hung application.
+            if ((++iterations & 0x3F) == 0)
+                await Task.Yield();
+
             var operation = _plan.Next(_random, _index);
             SqlRequest request;
 

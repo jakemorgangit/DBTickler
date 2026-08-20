@@ -24,6 +24,7 @@ namespace DBTickler.App.ViewModels;
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IUserInteraction _interaction;
+    private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     private readonly RunLog _log = new(capacity: 10_000);
     private readonly SessionStore _sessionStore = new();
     private readonly DispatcherTimer _metricsTimer;
@@ -518,7 +519,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OnEngineStateChanged(RunState state) => RunState = state;
+    /// <summary>
+    /// The engine raises this from whichever thread happened to finish the work — a
+    /// thread-pool thread once its awaits stop capturing the UI context. Setting RunState
+    /// re-evaluates commands, and WPF's CanExecuteChanged plumbing may only be touched from
+    /// the dispatcher thread, so the hop is mandatory rather than defensive.
+    /// </summary>
+    private void OnEngineStateChanged(RunState state) => OnUiThread(() => RunState = state);
+
+    private void OnUiThread(Action action)
+    {
+        if (_dispatcher.CheckAccess())
+            action();
+        else
+            _dispatcher.BeginInvoke(action);
+    }
 
     private async Task StopAsync()
     {
