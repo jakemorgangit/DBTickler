@@ -106,5 +106,15 @@ jobs:
           # Curated notes for the release being cut. Update this file before tagging;
           # the auto-generated commit list is appended beneath it.
           body_path: .github/RELEASE_NOTES.md
-          generate_release_notes: true
           fail_on_unmatched_files: true
+
+      # Creating a release sets its body, but updating an existing one leaves the body alone,
+      # so a re-cut would silently keep stale notes. Force the published notes to match the
+      # file in this commit.
+      - name: Sync the release notes
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: gh release edit "$TAG" --notes-file .github/RELEASE_NOTES.md

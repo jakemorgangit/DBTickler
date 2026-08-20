@@ -74,3 +74,5 @@ v2; recreate them from the presets.
 431 tests run on every push, covering the engine against a fake session factory — including
 a direct assertion that concurrency never exceeds the configured virtual-user count — plus a
 check that every statement the tool can issue parses against the SQL Server 2022 grammar.
+
+**Full changelog**: https://github.com/jakemorgangit/DBTickler/compare/v1.0.0...v2.0.0
