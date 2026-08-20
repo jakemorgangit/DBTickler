@@ -2,7 +2,7 @@ DBTickler v2 is a rewrite. The source now lives in this repository, the load eng
 rebuilt around measurements that can be trusted, and the server-side observability the tool
 always described is finally in the box.
 
-There is also a new command-line tool, `dbtickler.exe`, which shares the same engine as the
+There is also a new command-line tool, `dbtickler-cli.exe`, which shares the same engine as the
 desktop app — useful for scripted and CI runs.
 
 ## Fixed
@@ -59,7 +59,7 @@ and `dbtickler probe` prints the exact set it would run against a given target.
 ## Downloads
 
 - **DBTickler.exe** — the desktop app. Portable, self-contained, no .NET installation needed.
-- **dbtickler.exe** — the command-line tool.
+- **dbtickler-cli.exe** — the command-line tool.
 
 Both are Windows x64. The core library and CLI are platform-neutral if you build from source.
 

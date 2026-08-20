@@ -103,6 +103,8 @@ loaded configuration file cannot smuggle writes past it.
 
 ### Command line
 
+Download `dbtickler-cli.exe` from the same [Releases](https://github.com/jakemorgangit/DBTickler/releases/) page.
+
 ```bash
 # See what DBTickler makes of a target before running anything
 dbtickler probe --server localhost --database AdventureWorks2022

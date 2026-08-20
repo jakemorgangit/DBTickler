@@ -76,13 +76,19 @@ jobs:
           -p:PublishSingleFile=true
           --output publish/cli
 
+      # The desktop app publishes as DBTickler.exe and the CLI as dbtickler.exe, which differ
+      # only by case. Attaching both to one release collides, and it is confusing to download.
+      - name: Give the CLI a distinct asset name
+        shell: pwsh
+        run: Rename-Item publish/cli/dbtickler.exe dbtickler-cli.exe
+
       - name: Upload build artefacts
         uses: actions/upload-artifact@v4
         with:
           name: dbtickler-win-x64
           path: |
             publish/app/DBTickler.exe
-            publish/cli/dbtickler.exe
+            publish/cli/dbtickler-cli.exe
           if-no-files-found: error
 
       # A release can be cut two ways: by pushing a v* tag, or by running this workflow
@@ -96,8 +102,9 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: |
             publish/app/DBTickler.exe
-            publish/cli/dbtickler.exe
+            publish/cli/dbtickler-cli.exe
           # Curated notes for the release being cut. Update this file before tagging;
           # the auto-generated commit list is appended beneath it.
           body_path: .github/RELEASE_NOTES.md
           generate_release_notes: true
+          fail_on_unmatched_files: true
