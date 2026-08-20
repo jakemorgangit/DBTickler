@@ -87,4 +87,7 @@ jobs:
           files: |
             publish/app/DBTickler.exe
             publish/cli/dbtickler.exe
+          # Curated notes for the release being cut. Update this file before tagging;
+          # the auto-generated commit list is appended beneath it.
+          body_path: .github/RELEASE_NOTES.md
           generate_release_notes: true
