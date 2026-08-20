@@ -1,60 +1,47 @@
-DBTickler v2 is a rewrite. The source now lives in this repository, the load engine was
-rebuilt around measurements that can be trusted, and the server-side observability the tool
-always described is finally in the box.
-
-There is also a new command-line tool, `dbtickler-cli.exe`, which shares the same engine as the
-desktop app — useful for scripted and CI runs.
+A fix release for problems reported against v2.0.0: a crash on every run, and a dark theme
+that left several controls unreadable.
 
 ## Fixed
 
-Several things in v1 did not do what they said:
+**The application no longer reports a crash on every run.** The engine raises run-state
+changes from whichever thread advanced the run, and the window updated its buttons directly
+from that callback — but WPF's command plumbing may only be touched from the UI thread. The
+ramp-up transition is raised from a fire-and-forget task, so the resulting error was never
+observed and resurfaced later as *"A Task's exception(s) were not observed"*, once per run.
+The window now marshals engine callbacks onto its own thread, and the engine notifies
+listeners one at a time and contains any that throw, so a misbehaving listener can no longer
+end an unattended run.
 
-- **Stopping a run now actually stops it.** The KILL matched on `program_name = 'DBTickler'`,
-  but nothing ever set an application name on the connections, so it matched no sessions at all.
-- **The virtual-user count is the real concurrency.** Each v1 "thread" fanned out
-  `BatchSize / 20` concurrent statements, so 32 threads at batch size 1000 opened roughly
-  1,600 connections — past the default pool limit, which surfaced as timeouts that looked
-  like server problems.
-- **Reaching the configured duration ends the run.** v1 relabelled the UI as finished while
-  its workers carried on working.
-- **The error budget is a single global count**, not a per-worker one silently multiplied by
-  the thread count.
-- **Each virtual user has its own random generator.** One instance was shared across
-  concurrent workers, a data race that can leave the generator returning a constant.
-- **Run timing uses a monotonic clock**, so a clock adjustment no longer corrupts the
-  reported duration and throughput.
-- **The client is no longer the bottleneck.** Payloads were built one character at a time —
-  around 200,000 append operations per row at large batch sizes. They are now sliced from a
-  pre-generated buffer.
-- **The log is bounded and batched.** Every statement was previously dispatched to a TextBox
-  that was never trimmed, which froze the UI under load and eventually ran out of memory.
+**Dark mode is readable.** Most controls were only re-coloured, which leaves WPF's stock
+templates painting their own light-theme chrome underneath — most visibly on grid column
+headers and combo box drop-downs, where near-white text landed on a near-white background.
+Combo boxes, list and grid rows, column headers, scroll bars, check boxes, sliders, tooltips
+and text fields are now fully re-templated, against a palette that defines every colour in
+both themes.
 
-## New
+**The sliders have been rebuilt** as a rounded track with the travelled portion filled in the
+accent colour and a circular thumb that responds to hover and drag, replacing the stock tab
+over a sunken groove.
 
-- **Latency percentiles** — p50 / p90 / p95 / p99 / p99.9 / max, per operation category.
-  v1 measured no latency at all.
-- **Works against any database.** The target is probed first and the workload is built from
-  what is actually there, so a database that is not AdventureWorks degrades to a generic
-  workload instead of failing every operation.
-- **Live observability** — active sessions, blocking chains drawn as trees rooted at the head
-  blocker, wait statistics diffed against a baseline taken at the start of the run, and
-  deadlock graphs read from `system_health`.
-- **Deadlocks and waits explained in plain English**, rather than left as XML and acronyms.
-- **Live throughput and latency charts.**
-- **Reproducible runs** — fix the random seed and the same operations run in the same order.
-- **Ramp-up and Poisson-distributed think time.**
-- **Exportable results** — JSON, a CSV summary, and a per-second throughput series.
-- **A production guard** that checks for Always On, clustering, replication, FULL recovery and
-  other applications' connections before any destructive run.
-- **A command-line tool** with latency and error-rate thresholds that set the exit code.
+**A virtual user could pin a CPU core.** If operations completed synchronously — which is
+what happens when a server refuses connections outright — the user loop never returned to the
+scheduler. That starved the timers that end the run and report ramp-up, so a failing target
+looked like a hung application. Users now yield periodically.
 
-## Safety
+**Background faults no longer interrupt you.** Unobserved task exceptions were each raised as
+a modal dialog. They are reported long after the work was abandoned and tend to repeat, so
+they are now written to the log only; dialogs are kept for faults worth acting on.
 
-DBTickler only ever modifies its own table, `dbo.LoadGen`. Your tables are read from, never
-written to. Safe mode is enforced inside the engine rather than by the UI, so a loaded
-configuration file cannot smuggle writes past it. Every statement the tool can issue is
-listed in [docs/OPERATIONS.md](https://github.com/jakemorgangit/DBTickler/blob/main/docs/OPERATIONS.md),
-and `dbtickler probe` prints the exact set it would run against a given target.
+## Also
+
+The window renders with pixel snapping and display-mode text, and the panels have been given
+more consistent spacing.
+
+A new test suite enforces on every push what compiling cannot: that both palettes define the
+same keys, that every resource reference resolves, and that the controls whose stock
+templates are light-only still carry one. A resource key missing from a theme resolves to
+nothing at runtime rather than failing the build, which is precisely how the unreadable
+controls arose.
 
 ## Downloads
 
@@ -63,16 +50,4 @@ and `dbtickler probe` prints the exact set it would run against a given target.
 
 Both are Windows x64. The core library and CLI are platform-neutral if you build from source.
 
-## Upgrading from v1
-
-Point it at the same database and press **Setup**. The existing `dbo.LoadGen` table is
-upgraded in place — it is not dropped and recreated. Saved sessions from v1 are not read by
-v2; recreate them from the presets.
-
-## Verification
-
-431 tests run on every push, covering the engine against a fake session factory — including
-a direct assertion that concurrency never exceeds the configured virtual-user count — plus a
-check that every statement the tool can issue parses against the SQL Server 2022 grammar.
-
-**Full changelog**: https://github.com/jakemorgangit/DBTickler/compare/v1.0.0...v2.0.0
+**Full changelog**: https://github.com/jakemorgangit/DBTickler/compare/v2.0.0...v2.0.1
