@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chiptune Cart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&family=VT323&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #110f26;
+    --panel: #1b1840;
+    --panel-2: #231f52;
+    --line: #36316e;
+    --text: #ebe7ff;
+    --dim: #8f88c7;
+    --faint: #4d4785;
+    --p1: #5fe1e8;
+    --p2: #ff7aa2;
+    --tri: #ffd35c;
+    --noise: #93f28a;
+    --focus: #ffffff;
+    --display: "Press Start 2P", ui-monospace, monospace;
+    --tracker: "VT323", ui-monospace, "Courier New", monospace;
+    --body: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 var(--body);
+    padding-inline: 16px;
+    padding-block: 28px 48px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; }
+
+  header { display: grid; gap: 10px; }
+  h1 {
+    font: 22px/1.3 var(--display);
+    margin: 0;
+    letter-spacing: 1px;
+    text-wrap: balance;
+    text-shadow: 3px 3px 0 #3b2f8f;
+  }
+  h1 .c1 { color: var(--p1); } h1 .c2 { color: var(--p2); }
+  .lede { margin: 0; max-width: 68ch; color: var(--dim); }
+  .lede b { color: var(--text); font-weight: 600; }
+
+  .deck { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 820px) { .deck { grid-template-columns: minmax(0, 1fr); } }
+
+  .panel { background: var(--panel); border: 2px solid var(--line); border-radius: 4px; }
+  .label {
+    font: 9px/1 var(--display);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* Tracker */
+  .tracker { overflow: hidden; }
+  .tracker-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 12px 14px; border-bottom: 2px solid var(--line); background: var(--panel-2);
+  }
+  .tracker-head .now { font: 20px/1 var(--tracker); color: var(--text); font-variant-numeric: tabular-nums; }
+  .rows { overflow-x: auto; padding-block: 8px; }
+  .rows pre {
+    margin: 0; padding-inline: 14px;
+    font: 22px/1.12 var(--tracker);
+    white-space: pre; min-width: max-content;
+  }
+  .row { display: block; color: var(--text); }
+  .row.cur { background: #3a2f93; box-shadow: inset 3px 0 0 var(--tri); }
+  .row.beat .rn, .row.cur .rn { color: var(--text); }
+  .rn { color: var(--faint); }
+  .sep { color: var(--faint); }
+  .e { color: var(--faint); }
+  .h { color: var(--faint); }
+  .n1 { color: var(--p1); } .n2 { color: var(--p2); } .n3 { color: var(--tri); } .n4 { color: var(--noise); }
+  .col-head { color: var(--dim); }
+  @media (max-width: 460px) { .rows pre { font-size: 18px; padding-inline: 10px; } }
+
+  /* Right column */
+  .side { display: grid; gap: 20px; }
+  .transport { padding: 16px; display: grid; gap: 14px; }
+  .transport-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button {
+    font: inherit; color: inherit; cursor: pointer;
+    background: var(--panel-2); border: 2px solid var(--line); border-radius: 3px;
+  }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .play {
+    font: 12px/1 var(--display); padding: 14px 18px;
+    background: var(--tri); color: #1b1535; border-color: #fff3c4;
+    box-shadow: 0 4px 0 #a1791e;
+  }
+  .play:active { transform: translateY(3px); box-shadow: 0 1px 0 #a1791e; }
+  .play[aria-pressed="true"] { background: var(--p2); border-color: #ffd0de; box-shadow: 0 4px 0 #a33a5d; }
+  .vol { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--dim); }
+  .vol input { width: 110px; accent-color: var(--tri); }
+
+  .songs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .song { padding: 10px; text-align: left; display: grid; gap: 4px; }
+  .song .t { font: 9px/1.3 var(--display); }
+  .song .m { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .song[aria-pressed="true"] { border-color: var(--p1); background: #1f3a5a; }
+
+  .channels { padding: 6px 16px; }
+  .ch { display: grid; grid-template-columns: 14px 1fr auto; gap: 12px; align-items: center; padding-block: 9px; }
+  .ch + .ch { border-top: 1px dashed var(--line); }
+  .led { width: 14px; height: 14px; background: var(--faint); transition: background 60ms, box-shadow 60ms; }
+  .led.on { box-shadow: 0 0 10px currentColor; background: currentColor; }
+  .ch-name { font: 9px/1.4 var(--display); }
+  .ch-desc { color: var(--dim); font-size: 12px; }
+  .mute { padding: 5px 9px; font-size: 12px; color: var(--dim); }
+  .mute[aria-pressed="true"] { color: var(--bg); background: var(--dim); border-color: var(--dim); }
+
+  .scope { padding: 12px 16px 16px; display: grid; gap: 10px; }
+  canvas { width: 100%; height: 96px; display: block; image-rendering: pixelated; background: #0b0a1c; border: 2px solid var(--line); }
+
+  .sfx { padding: 16px; display: grid; gap: 12px; }
+  .pad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 460px) { .pad { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .pad button { padding: 12px 6px; display: grid; gap: 6px; justify-items: center; }
+  .pad .k { font: 16px/1 var(--tracker); color: var(--dim); }
+  .pad .n { font: 8px/1.2 var(--display); }
+  .pad button.hit { background: var(--noise); color: var(--bg); }
+
+  /* Integration */
+  .howto { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  @media (max-width: 820px) { .howto { grid-template-columns: minmax(0, 1fr); } }
+  .howto section { padding: 16px; display: grid; gap: 10px; align-content: start; }
+  .howto h2 { font: 11px/1.4 var(--display); margin: 0; color: var(--tri); }
+  .howto p { margin: 0; color: var(--dim); max-width: 62ch; }
+  .howto code { color: var(--text); }
+  .code { overflow-x: auto; background: #0b0a1c; border: 2px solid var(--line); }
+  .code pre { margin: 0; padding: 12px 14px; font: 13px/1.55 var(--body); color: var(--text); }
+  .code .c { color: var(--dim); }
+  .code .s { color: var(--noise); }
+  .code .kw { color: var(--p2); }
+  footer { color: var(--faint); font-size: 12px; }
+  kbd { font: 16px/1 var(--tracker); border: 1px solid var(--line); padding: 0 5px; border-radius: 2px; color: var(--text); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .led { transition: none; }
+    .play:active { transform: none; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span class="c1">CHIPTUNE</span> <span class="c2">CART</span></h1>
+    <p class="lede">Every sound on this page is synthesised live in your browser with the Web Audio API: <b>two pulse waves, a triangle and a noise channel</b>, the same four voices as the NES sound chip. No audio files. The whole engine is one 15&nbsp;KB script you can drop into a game.</p>
+  </header>
+
+  <div class="deck">
+    <div class="panel tracker" aria-label="Pattern tracker">
+      <div class="tracker-head">
+        <span class="label">Tracker</span>
+        <span class="now" id="now">BAR 01 · ROW 00</span>
+      </div>
+      <div class="rows"><pre id="rows"></pre></div>
+    </div>
+
+    <div class="side">
+      <div class="panel transport">
+        <div class="transport-top">
+          <button class="play" id="play" aria-pressed="false">▶ PLAY</button>
+          <label class="vol" for="volume">Vol <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+        </div>
+        <div class="songs" id="songs" role="group" aria-label="Songs"></div>
+      </div>
+
+      <div class="panel channels" id="channels" aria-label="Channels"></div>
+
+      <div class="panel scope">
+        <span class="label">Output · oscilloscope</span>
+        <canvas id="scope" height="96"></canvas>
+      </div>
+
+      <div class="panel sfx">
+        <span class="label">Sound effects · keys 1–8</span>
+        <div class="pad" id="pad"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="howto">
+    <section class="panel">
+      <h2>Use it in a game</h2>
+      <p>Load <code>chiptune.js</code>, unlock audio on the first click or keypress (browsers block sound until then), and call it from your game loop.</p>
+      <div class="code"><pre><span class="kw">const</span> chip = <span class="kw">new</span> ChipTune();
+
+startButton.onclick = () =&gt; {
+  chip.unlock();
+  chip.play(ChipTune.songs.overworld);
+};
+
+<span class="c">// in your game logic</span>
+<span class="kw">if</span> (player.touches(coin)) chip.sfx(<span class="s">'coin'</span>);
+<span class="kw">if</span> (boss.awake) chip.play(ChipTune.songs.boss);
+<span class="kw">if</span> (paused) chip.stop();</pre></div>
+    </section>
+    <section class="panel">
+      <h2>Write your own tune</h2>
+      <p>One step is a sixteenth note. Pitched lines are <code>NOTE:steps</code> with <code>r</code> for rests. Drum lines take one character per step: <code>k</code> kick, <code>s</code> snare, <code>h</code> hat.</p>
+      <div class="code"><pre><span class="kw">const</span> myTheme = {
+  name: <span class="s">'Title'</span>, bpm: 132,
+  pulse1:   { duty: 0.25, vol: 0.15,
+              line: <span class="s">'C5:2 E5:2 G5:4 A5:2 G5:2 E5:4'</span> },
+  triangle: { vol: 0.3,
+              line: <span class="s">'C3:4 G2:4 A2:4 G2:4'</span> },
+  noise:    { vol: 0.3, line: <span class="s">'k.h.s.h.k.h.s.hh'</span> },
+};
+chip.play(myTheme);</pre></div>
+    </section>
+  </div>
+
+  <footer>Press <kbd>Space</kbd> to play or stop. Three example songs are included: all original compositions.</footer>
+</div>
+
+<script src="chiptune.js"></script>
+<script>
+(() => {
+  const chip = new ChipTune();
+  const SONGS = ChipTune.songs;
+  const CH = ChipTune.CHANNELS;
+  const COLOR = { pulse1: 'var(--p1)', pulse2: 'var(--p2)', triangle: 'var(--tri)', noise: 'var(--noise)' };
+  const CLS = { pulse1: 'n1', pulse2: 'n2', triangle: 'n3', noise: 'n4' };
+  const DRUM = { k: 'BD', s: 'SN', h: 'HH', o: 'OH', c: 'CR' };
+  const LABEL = { pulse1: 'Pulse 1', pulse2: 'Pulse 2', triangle: 'Triangle', noise: 'Noise' };
+  const SFX = ['coin', 'jump', 'laser', 'hit', 'explosion', 'powerup', 'levelup', 'select'];
+
+  let songKey = 'overworld';
+  let compiled = ChipTune.compile(SONGS[songKey]);
+  let shownStep = 0;
+  const queue = [];
+
+  const $ = (id) => document.getElementById(id);
+  const rowsEl = $('rows'), nowEl = $('now'), playBtn = $('play');
+
+  function cell(ch, v) {
+    if (!v) return '<span class="e">---</span>';
+    if (v === '~') return '<span class="h">  ·</span>';
+    if (ch === 'noise') return `<span class="${CLS[ch]}">${DRUM[v] || v} </span>`;
+    const m = /^([A-G])(#?)(\d)$/.exec(v);
+    const txt = m ? m[1] + (m[2] || '-') + m[3] : v;
+    return `<span class="${CLS[ch]}">${txt}</span>`;
+  }
+
+  const hex = (n) => n.toString(16).toUpperCase().padStart(2, '0');
+  const VISIBLE = 17;
+
+  function renderRows(step) {
+    const { rows, length } = compiled;
+    const half = Math.floor(VISIBLE / 2);
+    const out = [];
+    out.push('<span class="row col-head">      <span class="sep">│</span> P1  <span class="sep">│</span> P2  <span class="sep">│</span> TRI <span class="sep">│</span> NSE</span>');
+    for (let i = -half; i <= half; i++) {
+      const s = step + i;
+      if (s < 0 || s >= length) { out.push('<span class="row"> </span>'); continue; }
+      const r = rows[s];
+      const bar = Math.floor(s / 16) + 1, rn = s % 16;
+      const cls = 'row' + (i === 0 ? ' cur' : '') + (rn % 4 === 0 ? ' beat' : '');
+      const cols = CH.map((ch) => cell(ch, r[ch])).join(' <span class="sep">│</span> ');
+      out.push(`<span class="${cls}"><span class="rn">${hex(bar)}:${hex(rn)}</span> <span class="sep">│</span> ${cols}</span>`);
+    }
+    rowsEl.innerHTML = out.join('');
+    nowEl.textContent = `BAR ${String(Math.floor(step / 16) + 1).padStart(2, '0')} · ROW ${hex(step % 16)}`;
+  }
+
+  // Song buttons
+  const songsEl = $('songs');
+  for (const [key, song] of Object.entries(SONGS)) {
+    const b = document.createElement('button');
+    b.className = 'song';
+    b.dataset.key = key;
+    b.setAttribute('aria-pressed', key === songKey);
+    const bars = ChipTune.compile(song).length / 16;
+    b.innerHTML = `<span class="t">${song.name}</span><span class="m">${song.bpm} BPM · ${bars} bars</span>`;
+    b.addEventListener('click', () => selectSong(key, true));
+    songsEl.appendChild(b);
+  }
+
+  function selectSong(key, start) {
+    songKey = key;
+    compiled = ChipTune.compile(SONGS[key]);
+    queue.length = 0;
+    shownStep = 0;
+    for (const b of songsEl.children) b.setAttribute('aria-pressed', b.dataset.key === key);
+    renderChannels();
+    renderRows(0);
+    if (start || chip.playing) { chip.play(SONGS[key]); setPlaying(true); }
+  }
+
+  // Channel strip
+  const chEl = $('channels');
+  const leds = {};
+  function describe(ch, song) {
+    const c = song[ch];
+    if (!c) return 'Unused';
+    if (ch === 'noise') return 'Drums from filtered noise';
+    if (ch === 'triangle') return 'Bass line';
+    const role = c.delay ? `Echo, ${c.delay} steps late` : ch === 'pulse1' ? 'Lead melody' : 'Arpeggios';
+    return `${role} · ${c.duty * 100}% duty`;
+  }
+  function renderChannels() {
+    chEl.innerHTML = '';
+    for (const ch of CH) {
+      const row = document.createElement('div');
+      row.className = 'ch';
+      row.innerHTML = `<span class="led" style="color:${COLOR[ch]}"></span>
+        <span><span class="ch-name" style="color:${COLOR[ch]}">${LABEL[ch]}</span><br><span class="ch-desc">${describe(ch, SONGS[songKey])}</span></span>
+        <button class="mute" aria-pressed="${!!chip.muted[ch]}" id="mute-${ch}">${chip.muted[ch] ? 'Muted' : 'Mute'}</button>`;
+      const btn = row.querySelector('button');
+      btn.addEventListener('click', () => {
+        const m = !chip.muted[ch];
+        chip.setMuted(ch, m);
+        btn.setAttribute('aria-pressed', m);
+        btn.textContent = m ? 'Muted' : 'Mute';
+      });
+      leds[ch] = row.querySelector('.led');
+      chEl.appendChild(row);
+    }
+  }
+
+  // SFX pad
+  const padEl = $('pad');
+  SFX.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="k">${i + 1}</span><span class="n">${name.toUpperCase()}</span>`;
+    b.addEventListener('click', () => fire(i));
+    padEl.appendChild(b);
+  });
+  function fire(i) {
+    chip.sfx(SFX[i]);
+    const b = padEl.children[i];
+    b.classList.add('hit');
+    setTimeout(() => b.classList.remove('hit'), 120);
+  }
+
+  // Transport
+  function setPlaying(on) {
+    playBtn.setAttribute('aria-pressed', on);
+    playBtn.textContent = on ? '■ STOP' : '▶ PLAY';
+  }
+  function toggle() {
+    if (chip.playing) { chip.stop(); setPlaying(false); queue.length = 0; for (const ch of CH) leds[ch].classList.remove('on'); }
+    else { chip.play(SONGS[songKey]); setPlaying(true); }
+  }
+  playBtn.addEventListener('click', toggle);
+  $('volume').addEventListener('input', (e) => chip.setVolume(Number(e.target.value)));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input')) return;
+    if (e.code === 'Space' && !e.target.matches('button')) { e.preventDefault(); toggle(); }
+    const n = Number(e.key);
+    if (n >= 1 && n <= SFX.length && !e.repeat) fire(n - 1);
+  });
+
+  chip.onStep((ev) => queue.push(ev));
+
+  // Visuals follow the audio clock, not the scheduler, so they line up with what you hear.
+  const canvas = $('scope');
+  const g = canvas.getContext('2d');
+  let wave = null;
+  function drawScope() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    g.fillStyle = '#0b0a1c';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#1d1a40';
+    for (let x = 0; x < w; x += 24 * dpr) g.fillRect(x, 0, dpr, h);
+    g.fillRect(0, h / 2, w, dpr);
+    const px = 3 * dpr;
+    g.fillStyle = '#5fe1e8';
+    if (chip.analyser) {
+      if (!wave) wave = new Uint8Array(chip.analyser.fftSize);
+      chip.analyser.getByteTimeDomainData(wave);
+      let start = 0;
+      for (let i = 1; i < wave.length / 2; i++) if (wave[i - 1] < 128 && wave[i] >= 128) { start = i; break; }
+      const span = 600;
+      for (let x = 0; x < w; x += px) {
+        const v = (wave[start + Math.floor((x / w) * span)] - 128) / 128;
+        const y = Math.round((h / 2 - v * h * 0.9) / px) * px;
+        g.fillRect(x, y, px, px);
+      }
+    } else {
+      for (let x = 0; x < w; x += px) g.fillRect(x, Math.round(h / 2 / px) * px, px, px);
+    }
+  }
+
+  function frame() {
+    if (chip.ctx) {
+      const now = chip.ctx.currentTime;
+      let latest = null;
+      while (queue.length && queue[0].time <= now) latest = queue.shift();
+      if (latest && chip.playing) {
+        shownStep = latest.step;
+        renderRows(shownStep);
+        const r = compiled.rows[shownStep] || {};
+        for (const ch of CH) {
+          if (r[ch] && r[ch] !== '~' && !chip.muted[ch]) {
+            leds[ch].classList.add('on');
+            clearTimeout(leds[ch]._t);
+            leds[ch]._t = setTimeout(() => leds[ch].classList.remove('on'), 90);
+          }
+        }
+      }
+    }
+    drawScope();
+    requestAnimationFrame(frame);
+  }
+
+  renderChannels();
+  renderRows(0);
+  requestAnimationFrame(frame);
+})();
+</script>
