@@ -18,6 +18,7 @@
  * Song format: each pitched channel is a line of "NOTE:steps" tokens, where a step is a
  * sixteenth note and "r" is a rest, e.g. "C5:2 E5:2 G5:4 r:8". Drum lines use one character
  * per step and "." for silence, e.g. "k.h.s.h.". Shorter lines repeat to fill the song.
+ * Songs in 3/4 or 6/8 set barSteps: 12. More songs: songs-adventure.js.
  */
 (function (global) {
   'use strict';
@@ -84,7 +85,8 @@
         }
       }
     }
-    return { name: song.name, bpm: song.bpm, length, byStep, rows, def: song };
+    const barSteps = song.barSteps || 16;
+    return { name: song.name, bpm: song.bpm, length, barSteps, beatSteps: song.beatSteps || 4, byStep, rows, def: song };
   }
 
   // Band-limited pulse wave with the given duty cycle, built from its Fourier series.
@@ -506,14 +508,15 @@
   // ---- Songs ---------------------------------------------------------------------------
 
   // Arpeggiate one chord per bar through a pattern of chord-tone indexes.
-  function arp(chords, pattern, stepLen) {
+  // barSteps is 16 for 4/4 and 12 for 3/4 or 6/8.
+  function arp(chords, pattern, stepLen, barSteps) {
     const len = stepLen || 1;
     return chords.map((chord) =>
-      Array.from({ length: 16 / len }, (_, i) => chord[pattern[i % pattern.length]] + ':' + len).join(' ')
+      Array.from({ length: (barSteps || 16) / len }, (_, i) => chord[pattern[i % pattern.length]] + ':' + len).join(' ')
     ).join(' ');
   }
 
-  // One bar of bass per root, from a rhythm of "semitoneOffset:steps" tokens that fills 16 steps.
+  // One bar of bass per root, from a rhythm of "semitoneOffset:steps" tokens that fills one bar.
   function bass(roots, rhythm) {
     return roots.map((root) =>
       rhythm.split(' ').map((tok) => {
@@ -527,7 +530,7 @@
 
   ChipTune.songs = {
     overworld: {
-      name: 'Overworld',
+      name: 'Overworld', group: 'Arcade',
       bpm: 150,
       pulse1: {
         duty: 0.25, vol: 0.15,
@@ -548,7 +551,7 @@
     },
 
     dungeon: {
-      name: 'Dungeon',
+      name: 'Dungeon', group: 'Arcade',
       bpm: 112,
       pulse1: {
         duty: 0.5, vol: 0.12, sustain: 0.5,
@@ -574,7 +577,7 @@
     },
 
     boss: {
-      name: 'Boss Fight',
+      name: 'Boss Fight', group: 'Arcade',
       bpm: 172,
       pulse1: {
         duty: 0.25, vol: 0.14,
