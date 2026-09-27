@@ -13,6 +13,7 @@
  *   chip.play(ChipTune.songs.overworld);
  *   chip.sfx('coin');
  *   chip.stop();
+ *   chip.setMode('16bit');                  // SNES/Mega Drive-style voices, switchable live
  *
  * Song format: each pitched channel is a line of "NOTE:steps" tokens, where a step is a
  * sixteenth note and "r" is a rest, e.g. "C5:2 E5:2 G5:4 r:8". Drum lines use one character
@@ -95,8 +96,26 @@
     return ctx.createPeriodicWave(real, imag);
   }
 
+  // Stereo placement and echo sends per mode. 8-bit is dry mono like the NES; 16-bit adds
+  // SNES-style stereo and a filtered feedback echo.
+  const MODES = {
+    '8bit': {
+      level: 1,
+      echo: 0,
+      pan: { pulse1: 0, pulse2: 0, triangle: 0, noise: 0 },
+      send: { pulse1: 0, pulse2: 0, triangle: 0, noise: 0 },
+    },
+    '16bit': {
+      level: 0.66, // the richer voices are louder; this matches 8-bit's loudness
+      echo: 0.55,
+      pan: { pulse1: -0.25, pulse2: 0.35, triangle: 0, noise: 0.1 },
+      send: { pulse1: 0.45, pulse2: 0.5, triangle: 0.08, noise: 0.25 },
+    },
+  };
+
   class ChipTune {
     constructor() {
+      this.mode = '8bit';
       this.ctx = null;
       this.song = null;
       this.playing = false;
@@ -118,12 +137,52 @@
       this.musicBus.connect(this.master);
       this.sfxBus = ctx.createGain();
       this.sfxBus.connect(this.master);
+      // Echo: delay -> low-pass -> feedback loop, heard only in 16-bit mode.
+      this.echoIn = ctx.createGain();
+      const delay = ctx.createDelay(1);
+      delay.delayTime.value = 0.27;
+      const damp = ctx.createBiquadFilter();
+      damp.type = 'lowpass';
+      damp.frequency.value = 2600;
+      const feedback = ctx.createGain();
+      feedback.gain.value = 0.38;
+      this.echoOut = ctx.createGain();
+      this.echoIn.connect(delay);
+      delay.connect(damp);
+      damp.connect(feedback);
+      feedback.connect(delay);
+      damp.connect(this.echoOut);
+      this.echoOut.connect(this.master);
+      this.sfxSend = ctx.createGain();
+      this.sfxBus.connect(this.sfxSend);
+      this.sfxSend.connect(this.echoIn);
       this.waves = {};
       for (const d of [0.125, 0.25, 0.5, 0.75]) this.waves[d] = pulseWave(ctx, d);
       const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       this.noiseBuffer = buf;
+      this._applyMode();
+    }
+
+    /** Switch between '8bit' (NES-style) and '16bit' (SNES/Mega Drive-style) voices, live. */
+    setMode(mode) {
+      if (!MODES[mode]) throw new Error('Unknown mode: ' + mode);
+      this.mode = mode;
+      if (this.ctx) this._applyMode();
+    }
+
+    _applyMode() {
+      const m = MODES[this.mode];
+      const t = this.ctx.currentTime;
+      this.musicBus.gain.setTargetAtTime(m.level, t, 0.02);
+      this.echoOut.gain.setTargetAtTime(m.echo * m.level, t, 0.02);
+      this.sfxSend.gain.setTargetAtTime(m.echo ? 0.3 : 0, t, 0.02);
+      if (!this.chan) return;
+      for (const ch of CHANNELS) {
+        this.pans[ch].pan.setTargetAtTime(m.pan[ch], t, 0.02);
+        this.sends[ch].gain.setTargetAtTime(m.send[ch], t, 0.02);
+      }
     }
 
     /** Call from a click or key handler before the first sound. */
@@ -146,13 +205,23 @@
       const ctx = this.ctx;
       this.playBus = ctx.createGain();
       this.playBus.connect(this.musicBus);
+      this.playEcho = ctx.createGain();
+      this.playEcho.connect(this.echoIn);
       this.chan = {};
+      this.pans = {};
+      this.sends = {};
       for (const ch of CHANNELS) {
         const g = ctx.createGain();
         g.gain.value = this.muted[ch] ? 0 : 1;
-        g.connect(this.playBus);
+        const pan = ctx.createStereoPanner();
+        const send = ctx.createGain();
+        g.connect(pan).connect(this.playBus);
+        g.connect(send).connect(this.playEcho);
         this.chan[ch] = g;
+        this.pans[ch] = pan;
+        this.sends[ch] = send;
       }
+      this._applyMode();
       this.step = 0;
       this.nextTime = ctx.currentTime + 0.06;
       this.playing = true;
@@ -164,11 +233,12 @@
       if (!this.playing) return;
       this.playing = false;
       clearInterval(this._timer);
-      const bus = this.playBus;
       const t = this.ctx.currentTime;
-      bus.gain.setValueAtTime(bus.gain.value, t);
-      bus.gain.linearRampToValueAtTime(0, t + 0.05);
-      setTimeout(() => bus.disconnect(), 300);
+      for (const bus of [this.playBus, this.playEcho]) {
+        bus.gain.setValueAtTime(bus.gain.value, t);
+        bus.gain.linearRampToValueAtTime(0, t + 0.05);
+        setTimeout(() => bus.disconnect(), 300);
+      }
     }
 
     setMuted(ch, muted) {
@@ -202,11 +272,15 @@
       const def = this.song.def;
       for (const ev of this.song.byStep[step]) {
         const cfg = def[ev.ch];
+        const bus = this.chan[ev.ch];
+        const dur = ev.len * stepDur * (cfg.gate || 0.9);
         if (ev.ch === 'noise') {
-          this._drum(this.chan.noise, t, ev.note, cfg.vol);
+          if (this.mode === '16bit') this._drum16(bus, t, ev.note, cfg.vol);
+          else this._drum(bus, t, ev.note, cfg.vol);
+        } else if (this.mode === '16bit') {
+          this._voice16(ev.ch, bus, t, dur, ev.freq, cfg);
         } else {
-          const gate = cfg.gate || 0.9;
-          this._tone(this.chan[ev.ch], t, ev.len * stepDur * gate, ev.freq, {
+          this._tone(bus, t, dur, ev.freq, {
             wave: ev.ch === 'triangle' ? 'triangle' : 'pulse',
             duty: cfg.duty,
             vol: cfg.vol,
@@ -217,28 +291,145 @@
       for (const fn of this.listeners) fn({ step, time: t, song: this.song });
     }
 
+    // Attack, decay to a sustain level, hold, then release to silence at t + dur.
+    _envelope(g, t, dur, vol, sustain, attackTime) {
+      const sus = sustain == null ? 0.6 : sustain;
+      const end = t + dur;
+      const attack = t + Math.min(attackTime || 0.003, dur * 0.3);
+      const decay = Math.max(attack + 0.001, t + Math.min(0.09, dur * 0.5));
+      const release = Math.max(decay + 0.001, end - 0.015);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, attack);
+      g.gain.linearRampToValueAtTime(vol * sus, decay);
+      g.gain.setValueAtTime(vol * sus, release);
+      g.gain.linearRampToValueAtTime(0, end);
+    }
+
     _tone(bus, t, dur, freq, opts) {
       const ctx = this.ctx;
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
-      if (opts.wave === 'triangle') osc.type = 'triangle';
-      else osc.setPeriodicWave(this.waves[opts.duty || 0.5]);
+      let src = osc;
+      if (opts.wave === 'triangle') {
+        osc.type = 'triangle';
+      } else if (this.mode === '16bit') {
+        // Sound effects in 16-bit mode: a warmer, filtered sawtooth instead of a raw pulse.
+        osc.type = 'sawtooth';
+        src = ctx.createBiquadFilter();
+        src.type = 'lowpass';
+        src.frequency.value = 3500;
+        osc.connect(src);
+      } else {
+        osc.setPeriodicWave(this.waves[opts.duty || 0.5]);
+      }
       osc.frequency.setValueAtTime(freq, t);
       if (opts.slideTo) osc.frequency.exponentialRampToValueAtTime(opts.slideTo, t + dur);
-      const v = opts.vol;
-      const sus = opts.sustain == null ? 0.6 : opts.sustain;
+      this._envelope(g, t, dur, opts.vol, opts.sustain);
+      src.connect(g).connect(bus);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    }
+
+    // ---- 16-bit voices ----
+
+    _voice16(ch, bus, t, dur, freq, cfg) {
+      if (ch === 'pulse1') {
+        this._fm(bus, t, dur, freq, { vol: cfg.vol * 1.3, ratio: 1, index: 2.4, indexEnd: 0.9, sustain: cfg.sustain == null ? 0.75 : cfg.sustain, vibrato: true });
+      } else if (ch === 'pulse2') {
+        this._strings(bus, t, dur, freq, cfg.vol * 1.5, cfg.sustain);
+      } else {
+        this._fm(bus, t, dur, freq, { vol: cfg.vol * 0.75, ratio: 1, index: 3.2, indexEnd: 0.25, sustain: 0.55, sub: true });
+      }
+    }
+
+    // Two-operator FM, the Mega Drive's sound: a modulator bends the carrier's pitch at audio rate.
+    _fm(bus, t, dur, freq, o) {
+      const ctx = this.ctx;
       const end = t + dur;
-      const attack = t + 0.003;
-      const decay = t + Math.min(0.09, dur * 0.5);
-      const release = Math.max(decay + 0.001, end - 0.015);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(v, attack);
-      g.gain.linearRampToValueAtTime(v * sus, decay);
-      g.gain.setValueAtTime(v * sus, release);
-      g.gain.linearRampToValueAtTime(0, end);
+      const car = ctx.createOscillator();
+      const mod = ctx.createOscillator();
+      const modDepth = ctx.createGain();
+      const g = ctx.createGain();
+      car.frequency.setValueAtTime(freq, t);
+      mod.frequency.setValueAtTime(freq * o.ratio, t);
+      modDepth.gain.setValueAtTime(freq * o.index, t);
+      modDepth.gain.exponentialRampToValueAtTime(Math.max(freq * o.indexEnd, 0.01), t + Math.min(0.25, dur));
+      mod.connect(modDepth).connect(car.frequency);
+      const oscs = [car, mod];
+      if (o.vibrato && dur > 0.25) {
+        const lfo = ctx.createOscillator();
+        const depth = ctx.createGain();
+        lfo.frequency.value = 5.5;
+        depth.gain.setValueAtTime(0, t);
+        depth.gain.linearRampToValueAtTime(freq * 0.012, t + Math.min(0.4, dur));
+        lfo.connect(depth);
+        depth.connect(car.frequency);
+        depth.connect(mod.frequency);
+        oscs.push(lfo);
+      }
+      if (o.sub) {
+        const sub = ctx.createOscillator();
+        sub.frequency.setValueAtTime(freq, t);
+        sub.connect(g);
+        oscs.push(sub);
+      }
+      this._envelope(g, t, dur, o.vol, o.sustain);
+      car.connect(g).connect(bus);
+      for (const osc of oscs) {
+        osc.start(t);
+        osc.stop(end + 0.02);
+      }
+    }
+
+    // A pair of detuned sawtooths through a low-pass filter, like a sampled string section.
+    _strings(bus, t, dur, freq, vol, sustain) {
+      const ctx = this.ctx;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = Math.min(freq * 5, 6000);
+      filter.Q.value = 0.8;
+      const g = ctx.createGain();
+      this._envelope(g, t, dur, vol * 0.6, sustain == null ? 0.85 : sustain, 0.012);
+      filter.connect(g).connect(bus);
+      for (const cents of [-7, 7]) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, t);
+        osc.detune.value = cents;
+        osc.connect(filter);
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
+      }
+    }
+
+    _thump(bus, t, type, from, to, dur, vol) {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(from, t);
+      osc.frequency.exponentialRampToValueAtTime(to, t + dur * 0.75);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
       osc.connect(g).connect(bus);
       osc.start(t);
-      osc.stop(end + 0.02);
+      osc.stop(t + dur + 0.02);
+    }
+
+    _drum16(bus, t, kind, vol) {
+      if (kind === 'k') {
+        this._thump(bus, t, 'sine', 150, 40, 0.3, vol * 2.2);
+        this._noise(bus, t, 0.02, vol * 0.5, { type: 'lowpass', freq: 3000 });
+      } else if (kind === 's') {
+        this._noise(bus, t, 0.24, vol * 0.9, { type: 'bandpass', freq: 2400, Q: 0.6 });
+        this._noise(bus, t, 0.12, vol * 0.4, { type: 'highpass', freq: 5000 });
+        this._thump(bus, t, 'sine', 210, 150, 0.1, vol * 0.8);
+      } else if (kind === 'h') {
+        this._noise(bus, t, 0.05, vol * 0.35, { type: 'highpass', freq: 9000 });
+      } else if (kind === 'o') {
+        this._noise(bus, t, 0.3, vol * 0.3, { type: 'highpass', freq: 8000 });
+      } else if (kind === 'c') {
+        this._noise(bus, t, 1.4, vol * 0.4, { type: 'highpass', freq: 4000 });
+      }
     }
 
     _noise(bus, t, dur, vol, filter) {
@@ -258,18 +449,8 @@
     }
 
     _drum(bus, t, kind, vol) {
-      const ctx = this.ctx;
       if (kind === 'k') {
-        const osc = ctx.createOscillator();
-        const g = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(170, t);
-        osc.frequency.exponentialRampToValueAtTime(42, t + 0.12);
-        g.gain.setValueAtTime(vol * 1.6, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-        osc.connect(g).connect(bus);
-        osc.start(t);
-        osc.stop(t + 0.18);
+        this._thump(bus, t, 'triangle', 170, 42, 0.16, vol * 1.6);
       } else if (kind === 's') {
         this._noise(bus, t, 0.16, vol * 0.9, { type: 'bandpass', freq: 1900, Q: 0.8 });
         this._tone(bus, t, 0.07, 190, { wave: 'triangle', vol: vol * 0.8, sustain: 0.3 });
@@ -414,6 +595,7 @@
   };
 
   ChipTune.CHANNELS = CHANNELS;
+  ChipTune.MODES = Object.keys(MODES);
   ChipTune.compile = compile;
   ChipTune.helpers = { arp, bass, transpose, noteToMidi, midiToNote };
   global.ChipTune = ChipTune;

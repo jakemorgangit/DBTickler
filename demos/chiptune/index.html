@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chiptune Cart</title>
+<link rel="icon" href="docs/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&family=VT323&display=swap">
@@ -103,6 +104,10 @@
   }
   .play:active { transform: translateY(3px); box-shadow: 0 1px 0 #a1791e; }
   .play[aria-pressed="true"] { background: var(--p2); border-color: #ffd0de; box-shadow: 0 4px 0 #a33a5d; }
+  .mode { display: flex; border: 2px solid var(--line); border-radius: 3px; background: #0b0a1c; }
+  .mode button { border: 0; border-radius: 0; background: transparent; color: var(--dim); font: 9px/1 var(--display); padding: 14px 12px; }
+  .mode button + button { border-left: 2px solid var(--line); }
+  .mode button[aria-pressed="true"] { background: var(--p1); color: var(--bg); }
   .vol { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--dim); }
   .vol input { width: 110px; accent-color: var(--tri); }
 
@@ -157,7 +162,7 @@
 <div class="wrap">
   <header>
     <h1><span class="c1">CHIPTUNE</span> <span class="c2">CART</span></h1>
-    <p class="lede">Every sound on this page is synthesised live in your browser with the Web Audio API: <b>two pulse waves, a triangle and a noise channel</b>, the same four voices as the NES sound chip. No audio files. The whole engine is one 15&nbsp;KB script you can drop into a game.</p>
+    <p class="lede">Every sound on this page is synthesised live in your browser with the Web Audio API: <b>two pulse waves, a triangle and a noise channel</b>, the same four voices as the NES sound chip. Switch to <b>16-bit</b> and the same songs play on FM synths, strings, stereo and echo, in the style of the SNES and Mega Drive. No audio files. The whole engine is one 23&nbsp;KB script you can drop into a game.</p>
     <a class="repo" href="https://github.com/jakemorgangit/Chiptune" target="_blank" rel="noopener">Source on GitHub: jakemorgangit/Chiptune</a>
   </header>
 
@@ -174,6 +179,10 @@
       <div class="panel transport">
         <div class="transport-top">
           <button class="play" id="play" aria-pressed="false">▶ PLAY</button>
+          <div class="mode" role="group" aria-label="Sound mode">
+            <button id="mode-8bit" data-mode="8bit" aria-pressed="true">8-BIT</button>
+            <button id="mode-16bit" data-mode="16bit" aria-pressed="false">16-BIT</button>
+          </div>
           <label class="vol" for="volume">Vol <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8"></label>
         </div>
         <div class="songs" id="songs" role="group" aria-label="Songs"></div>
@@ -207,7 +216,10 @@ startButton.onclick = () =&gt; {
 <span class="c">// in your game logic</span>
 <span class="kw">if</span> (player.touches(coin)) chip.sfx(<span class="s">'coin'</span>);
 <span class="kw">if</span> (boss.awake) chip.play(ChipTune.songs.boss);
-<span class="kw">if</span> (paused) chip.stop();</pre></div>
+<span class="kw">if</span> (paused) chip.stop();
+
+<span class="c">// switch sound style at any time, even mid-song</span>
+chip.setMode(<span class="s">'16bit'</span>);</pre></div>
     </section>
     <section class="panel">
       <h2>Write your own tune</h2>
@@ -224,7 +236,7 @@ chip.play(myTheme);</pre></div>
     </section>
   </div>
 
-  <footer>Press <kbd>Space</kbd> to play or stop. Three example songs are included: all original compositions.</footer>
+  <footer>Press <kbd>Space</kbd> to play or stop and <kbd>M</kbd> to switch between 8-bit and 16-bit. Three example songs are included: all original compositions.</footer>
 </div>
 
 <script src="chiptune.js"></script>
@@ -236,7 +248,12 @@ chip.play(myTheme);</pre></div>
   const COLOR = { pulse1: 'var(--p1)', pulse2: 'var(--p2)', triangle: 'var(--tri)', noise: 'var(--noise)' };
   const CLS = { pulse1: 'n1', pulse2: 'n2', triangle: 'n3', noise: 'n4' };
   const DRUM = { k: 'BD', s: 'SN', h: 'HH', o: 'OH', c: 'CR' };
-  const LABEL = { pulse1: 'Pulse 1', pulse2: 'Pulse 2', triangle: 'Triangle', noise: 'Noise' };
+  const LABEL = {
+    '8bit': { pulse1: 'Pulse 1', pulse2: 'Pulse 2', triangle: 'Triangle', noise: 'Noise' },
+    '16bit': { pulse1: 'FM Lead', pulse2: 'Strings', triangle: 'FM Bass', noise: 'Drum Kit' },
+  };
+  const HEAD = { '8bit': ['P1 ', 'P2 ', 'TRI', 'NSE'], '16bit': ['FM1', 'STR', 'BAS', 'KIT'] };
+  let mode = '8bit';
   const SFX = ['coin', 'jump', 'laser', 'hit', 'explosion', 'powerup', 'levelup', 'select'];
 
   let songKey = 'overworld';
@@ -263,7 +280,7 @@ chip.play(myTheme);</pre></div>
     const { rows, length } = compiled;
     const half = Math.floor(VISIBLE / 2);
     const out = [];
-    out.push('<span class="row col-head">      <span class="sep">│</span> P1  <span class="sep">│</span> P2  <span class="sep">│</span> TRI <span class="sep">│</span> NSE</span>');
+    out.push('<span class="row col-head">      <span class="sep">│</span> ' + HEAD[mode].join(' <span class="sep">│</span> ') + '</span>');
     for (let i = -half; i <= half; i++) {
       const s = step + i;
       if (s < 0 || s >= length) { out.push('<span class="row"> </span>'); continue; }
@@ -307,9 +324,15 @@ chip.play(myTheme);</pre></div>
   function describe(ch, song) {
     const c = song[ch];
     if (!c) return 'Unused';
+    const role = c.delay ? `Echo, ${c.delay} steps late` : ch === 'pulse1' ? 'Lead melody' : 'Arpeggios';
+    if (mode === '16bit') {
+      if (ch === 'noise') return 'Kick, snare and hats · echo';
+      if (ch === 'triangle') return 'Bass line · FM with a sine sub';
+      if (ch === 'pulse1') return `${role} · FM with vibrato · left`;
+      return `${role} · detuned saws · right`;
+    }
     if (ch === 'noise') return 'Drums from filtered noise';
     if (ch === 'triangle') return 'Bass line';
-    const role = c.delay ? `Echo, ${c.delay} steps late` : ch === 'pulse1' ? 'Lead melody' : 'Arpeggios';
     return `${role} · ${c.duty * 100}% duty`;
   }
   function renderChannels() {
@@ -318,7 +341,7 @@ chip.play(myTheme);</pre></div>
       const row = document.createElement('div');
       row.className = 'ch';
       row.innerHTML = `<span class="led" style="color:${COLOR[ch]}"></span>
-        <span><span class="ch-name" style="color:${COLOR[ch]}">${LABEL[ch]}</span><br><span class="ch-desc">${describe(ch, SONGS[songKey])}</span></span>
+        <span><span class="ch-name" style="color:${COLOR[ch]}">${LABEL[mode][ch]}</span><br><span class="ch-desc">${describe(ch, SONGS[songKey])}</span></span>
         <button class="mute" aria-pressed="${!!chip.muted[ch]}" id="mute-${ch}">${chip.muted[ch] ? 'Muted' : 'Mute'}</button>`;
       const btn = row.querySelector('button');
       btn.addEventListener('click', () => {
@@ -357,11 +380,21 @@ chip.play(myTheme);</pre></div>
     else { chip.play(SONGS[songKey]); setPlaying(true); }
   }
   playBtn.addEventListener('click', toggle);
+  const modeBtns = document.querySelectorAll('.mode button');
+  function setMode(m) {
+    mode = m;
+    chip.setMode(m);
+    for (const b of modeBtns) b.setAttribute('aria-pressed', b.dataset.mode === m);
+    renderChannels();
+    renderRows(shownStep);
+  }
+  for (const b of modeBtns) b.addEventListener('click', () => setMode(b.dataset.mode));
   $('volume').addEventListener('input', (e) => chip.setVolume(Number(e.target.value)));
 
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input')) return;
     if (e.code === 'Space' && !e.target.matches('button')) { e.preventDefault(); toggle(); }
+    if (e.key === 'm' || e.key === 'M') setMode(mode === '8bit' ? '16bit' : '8bit');
     const n = Number(e.key);
     if (n >= 1 && n <= SFX.length && !e.repeat) fire(n - 1);
   });
